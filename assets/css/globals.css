@@ -1,0 +1,92 @@
+/* 全局样式变量和组件样式 */
+
+/* 按钮样式统一 */
+.app-btn {
+  @apply px-4 py-2 rounded-md font-medium transition-colors duration-200 flex items-center justify-center;
+}
+
+.app-btn-primary {
+  @apply bg-blue-500 text-white hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+.app-btn-secondary {
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-2 focus:ring-gray-300 focus:ring-offset-2;
+}
+
+.app-btn-danger {
+  @apply bg-red-500 text-white hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+}
+
+.app-btn-success {
+  @apply bg-green-500 text-white hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-offset-2;
+}
+
+.app-btn-ghost {
+  @apply bg-transparent hover:bg-gray-100 text-gray-700;
+}
+
+.app-btn-sm {
+  @apply px-3 py-1 text-sm;
+}
+
+.app-btn-lg {
+  @apply px-6 py-3 text-lg;
+}
+
+.app-btn-icon {
+  @apply mr-2 w-5 h-5;
+}
+
+/* 菜单样式 */
+.nav-link {
+  @apply flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors duration-200 rounded-md;
+}
+
+.nav-link-active {
+  @apply bg-blue-50 text-blue-600 font-medium;
+}
+
+/* 卡片样式 */
+.app-card {
+  @apply bg-white rounded-lg shadow-sm p-6;
+}
+
+/* 表单样式 */
+.form-group {
+  @apply mb-4;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+.form-input {
+  @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500;
+}
+
+/* 表格样式 */
+.app-table {
+  @apply min-w-full divide-y divide-gray-200;
+}
+
+.app-table-header {
+  @apply bg-gray-50;
+}
+
+.app-table-row {
+  @apply hover:bg-gray-50;
+}
+
+/* 标题样式 */
+.page-title {
+  @apply text-xl font-semibold text-gray-800 mb-6;
+}
+
+.section-title {
+  @apply text-lg font-medium text-gray-700 mb-4;
+}
+
+/* 徽章样式 */
+.app-badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+} 

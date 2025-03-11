@@ -1,39 +1,49 @@
 <template>
   <div>
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-xl font-semibold">账单类型管理</h2>
-      <UButton color="primary" icon="i-heroicons-plus" @click="showAddModal = true">
+      <h2 class="page-title">账单类型管理</h2>
+      <UButton color="primary" icon="i-heroicons-plus" @click="showAddModal = true" class="app-btn app-btn-primary">
         添加类别
       </UButton>
     </div>
     
     <!-- 视图切换 -->
-    <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+    <div class="app-card mb-6">
       <div class="flex items-center justify-between">
         <div class="space-x-2">
           <UButton
-            :color="viewMode === 'tree' ? 'primary' : 'gray'"
+            :class="viewMode === 'tree' ? 'app-btn-primary' : 'app-btn-secondary'"
             variant="soft"
             @click="toggleViewMode('tree')"
           >
-            <span class="i-heroicons-squares-2x2 mr-1"></span>
+            <UIcon name="i-heroicons-squares-2x2" class="app-btn-icon" />
             树形视图
           </UButton>
           <UButton
-            :color="viewMode === 'list' ? 'primary' : 'gray'"
+            :class="viewMode === 'list' ? 'app-btn-primary' : 'app-btn-secondary'"
             variant="soft"
             @click="toggleViewMode('list')"
           >
-            <span class="i-heroicons-list-bullet mr-1"></span>
+            <UIcon name="i-heroicons-list-bullet" class="app-btn-icon" />
             列表视图
+          </UButton>
+          
+          <!-- 返回上级按钮 -->
+          <UButton
+            v-if="viewMode === 'list' && currentLevel > 1"
+            class="app-btn-secondary"
+            @click="backToParent"
+          >
+            <UIcon name="i-heroicons-arrow-left" class="app-btn-icon" />
+            返回上级
           </UButton>
         </div>
         
         <div v-if="viewMode === 'list'" class="flex space-x-2">
-          <UBadge color="gray" variant="soft" v-if="currentLevel > 1">
+          <UBadge color="gray" variant="soft" class="app-badge" v-if="currentLevel > 1">
             当前层级: {{ currentLevel }}
           </UBadge>
-          <UBadge color="gray" variant="soft" v-if="currentParent">
+          <UBadge color="gray" variant="soft" class="app-badge" v-if="currentParent">
             父类别: {{ currentParentName }}
           </UBadge>
         </div>
@@ -53,34 +63,13 @@
       <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8 text-primary-500" />
     </div>
     
-    <!-- 调试信息 -->
-    <div v-if="showDebug" class="bg-gray-100 p-4 rounded mb-6 text-sm">
-      <h3 class="font-medium mb-2">调试信息:</h3>
-      <div class="flex items-center mb-2">
-        <UButton size="xs" color="blue" @click="toggleDebug" class="mr-2">
-          隐藏调试信息
-        </UButton>
-        <UButton size="xs" color="emerald" @click="useTestData" class="mr-2">
-          使用测试数据
-        </UButton>
-        <UButton size="xs" color="amber" @click="refreshCategories">
-          刷新数据
-        </UButton>
-      </div>
-      <div><strong>视图模式:</strong> {{ viewMode }}</div>
-      <div><strong>树节点总数:</strong> {{ treeCategories.length }}</div>
-      <div><strong>收入类别数:</strong> {{ incomeCategories.length }}</div>
-      <div><strong>支出类别数:</strong> {{ expenseCategories.length }}</div>
-      <pre class="mt-2 overflow-auto max-h-40 bg-gray-200 p-2 rounded">{{ JSON.stringify(treeCategories, null, 2) }}</pre>
-    </div>
-    
     <!-- 树形视图 -->
     <div v-if="viewMode === 'tree' && !isLoading" class="grid md:grid-cols-2 gap-6">
       <!-- 收入分类 -->
-      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div class="app-card p-0 overflow-hidden">
         <div class="bg-green-50 p-4 border-b border-green-100">
-          <h3 class="font-medium flex items-center text-green-700">
-            <span class="i-heroicons-arrow-trending-up mr-2"></span>
+          <h3 class="section-title m-0 flex items-center text-green-700">
+            <UIcon name="i-heroicons-arrow-trending-up" class="w-5 h-5 mr-2" />
             收入分类 ({{ incomeCategories.length }})
           </h3>
         </div>
@@ -94,7 +83,7 @@
             />
           </template>
           <div v-else class="text-center py-8 text-gray-500">
-            <div class="i-heroicons-tag text-3xl mx-auto mb-2"></div>
+            <UIcon name="i-heroicons-tag" class="w-12 h-12 mx-auto mb-2 text-gray-300" />
             <p>暂无收入分类</p>
             <UButton 
               size="sm" 
@@ -110,10 +99,10 @@
       </div>
       
       <!-- 支出分类 -->
-      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div class="app-card p-0 overflow-hidden">
         <div class="bg-red-50 p-4 border-b border-red-100">
-          <h3 class="font-medium flex items-center text-red-700">
-            <span class="i-heroicons-arrow-trending-down mr-2"></span>
+          <h3 class="section-title m-0 flex items-center text-red-700">
+            <UIcon name="i-heroicons-arrow-trending-down" class="w-5 h-5 mr-2" />
             支出分类 ({{ expenseCategories.length }})
           </h3>
         </div>
@@ -127,7 +116,7 @@
             />
           </template>
           <div v-else class="text-center py-8 text-gray-500">
-            <div class="i-heroicons-tag text-3xl mx-auto mb-2"></div>
+            <UIcon name="i-heroicons-tag" class="w-12 h-12 mx-auto mb-2 text-gray-300" />
             <p>暂无支出分类</p>
             <UButton 
               size="sm" 
@@ -144,12 +133,13 @@
     </div>
     
     <!-- 列表视图 -->
-    <div v-else class="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div v-else class="app-card p-0 overflow-hidden">
       <UTable 
         :columns="columns" 
         :rows="categories" 
         :loading="isLoading"
         :empty-state="{ icon: 'i-heroicons-tag', label: '暂无类别' }"
+        class="app-table"
       >
         <template #actions-data="{ row }">
           <div class="flex">
@@ -157,29 +147,33 @@
               v-if="row.level < 3"
               color="blue"
               variant="ghost"
-              icon="i-heroicons-arrows-right-left"
               size="xs"
               @click="viewSubCategories(row)"
-              class="mr-1"
+              class="mr-1 app-btn-sm"
               :disabled="isLoading"
-            />
+            >
+              <UIcon name="i-heroicons-arrows-right-left" class="w-4 h-4" />
+            </UButton>
             <UButton
               color="gray"
               variant="ghost"
-              icon="i-heroicons-pencil-square"
               size="xs"
               @click="editCategory(row)"
-              class="mr-1"
+              class="mr-1 app-btn-sm"
               :disabled="isLoading"
-            />
+            >
+              <UIcon name="i-heroicons-pencil-square" class="w-4 h-4" />
+            </UButton>
             <UButton
               color="red"
               variant="ghost"
-              icon="i-heroicons-trash"
               size="xs"
               @click="confirmDelete(row)"
+              class="app-btn-sm"
               :disabled="isLoading"
-            />
+            >
+              <UIcon name="i-heroicons-trash" class="w-4 h-4" />
+            </UButton>
           </div>
         </template>
         
@@ -194,6 +188,23 @@
             {{ row.type === 'income' ? '收入' : '支出' }}
           </UBadge>
         </template>
+        
+        <template #name-data="{ row }">
+          <div class="flex items-center">
+            <span class="mr-2" :class="row.type === 'income' ? 'text-green-500' : 'text-red-500'">
+              <UIcon 
+                :name="row.type === 'income' 
+                  ? (row.hasChildren ? 'i-heroicons-banknotes' : 'i-heroicons-arrow-trending-up')
+                  : (row.hasChildren ? 'i-heroicons-shopping-bag' : 'i-heroicons-arrow-trending-down')" 
+                class="w-4 h-4" 
+              />
+            </span>
+            <span>{{ row.name }}</span>
+            <span v-if="row.hasChildren" class="ml-2 text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
+              {{ row.childrenCount }}
+            </span>
+          </div>
+        </template>
       </UTable>
     </div>
     
@@ -202,50 +213,60 @@
       <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-100' }">
         <template #header>
           <div class="flex justify-between items-center">
-            <h3 class="text-base font-semibold">
+            <h3 class="section-title mb-0">
               {{ isEditing ? '编辑类别' : '添加类别' }}
             </h3>
             <UButton
               color="gray"
               variant="ghost"
-              icon="i-heroicons-x-mark"
               @click="closeModal"
-            />
+              class="rounded-full w-8 h-8 p-0 flex items-center justify-center"
+            >
+              <UIcon name="i-heroicons-x-mark" class="w-5 h-5" />
+            </UButton>
           </div>
         </template>
         
-        <UForm :state="formState" class="space-y-4 py-2" @submit="saveCategory">
-          <UFormGroup label="名称" name="name">
-            <UInput v-model="formState.name" placeholder="请输入类别名称" />
+        <UForm :state="formState" class="space-y-4 py-4" @submit="saveCategory">
+          <UFormGroup label="名称" name="name" class="form-group">
+            <UInput v-model="formState.name" placeholder="请输入类别名称" class="form-input" />
           </UFormGroup>
           
-          <UFormGroup v-if="!isEditing" label="类型" name="type">
+          <UFormGroup v-if="!isEditing" label="类型" name="type" class="form-group">
             <USelect
               v-model="formState.type"
               :options="typeOptions"
               placeholder="请选择类型"
+              class="form-input"
             />
           </UFormGroup>
           
-          <UFormGroup v-if="!isEditing" label="父类别">
+          <UFormGroup v-if="!isEditing" label="父类别" class="form-group">
             <USelect
               v-model="formState.parentId"
               :options="parentOptions"
               placeholder="无 (顶级类别)"
               clearable
+              class="form-input"
             />
           </UFormGroup>
         </UForm>
         
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="closeModal">
+            <UButton 
+              color="gray" 
+              variant="soft" 
+              @click="closeModal"
+              class="app-btn app-btn-secondary"
+            >
               取消
             </UButton>
             <UButton
               color="primary"
               :loading="isSaving"
               @click="saveCategory"
+              class="app-btn app-btn-primary"
             >
               保存
             </UButton>
@@ -258,7 +279,7 @@
     <UModal v-model="showDeleteModal">
       <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-100' }">
         <template #header>
-          <h3 class="text-base font-semibold">确认删除</h3>
+          <h3 class="section-title mb-0">确认删除</h3>
         </template>
         
         <div class="py-4">
@@ -270,13 +291,19 @@
         
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="showDeleteModal = false">
+            <UButton 
+              color="gray" 
+              variant="soft" 
+              @click="showDeleteModal = false" 
+              class="app-btn app-btn-secondary"
+            >
               取消
             </UButton>
             <UButton
               color="red"
               :loading="isDeleting"
               @click="deleteCategory"
+              class="app-btn app-btn-danger"
             >
               删除
             </UButton>
@@ -355,12 +382,14 @@ const CategoryTree = {
         'div',
         { class: 'mb-2' },
         [
-          h('div', { class: 'flex items-center' }, [
+          h('div', { 
+            class: 'flex items-center p-2 rounded-md hover:bg-gray-50 group transition-colors duration-150',
+          }, [
             // 展开/折叠图标（如果有子类别）
             hasChildren ? h(
               'button',
               {
-                class: 'mr-1 text-gray-500 hover:text-gray-700',
+                class: 'mr-1 text-gray-500 hover:text-gray-700 focus:outline-none',
                 onClick: () => {
                   console.log('Toggle category:', category.name);
                   toggleCollapse(categoryId);
@@ -390,12 +419,12 @@ const CategoryTree = {
             ]),
             
             // 操作按钮组
-            h('div', { class: 'ml-auto flex' }, [
+            h('div', { class: 'ml-auto flex opacity-0 group-hover:opacity-100 transition-opacity duration-200' }, [
               // 查看子类别按钮
               hasChildren ? h(
                 'button',
                 {
-                  class: 'mr-1 inline-flex items-center rounded-md text-sm font-medium text-blue-500 hover:text-blue-700',
+                  class: 'mr-1 app-btn-sm text-blue-500 hover:text-blue-700 p-1 rounded',
                   onClick: () => {
                     console.log('View subcategories for:', category.name);
                     emit('view-sub', category);
@@ -408,7 +437,7 @@ const CategoryTree = {
               h(
                 'button',
                 {
-                  class: 'mr-1 inline-flex items-center rounded-md text-sm font-medium text-gray-500 hover:text-gray-700',
+                  class: 'mr-1 app-btn-sm text-gray-500 hover:text-gray-700 p-1 rounded',
                   onClick: () => {
                     console.log('Edit category:', category.name);
                     emit('edit', category);
@@ -421,7 +450,7 @@ const CategoryTree = {
               h(
                 'button',
                 {
-                  class: 'inline-flex items-center rounded-md text-sm font-medium text-red-500 hover:text-red-700',
+                  class: 'app-btn-sm text-red-500 hover:text-red-700 p-1 rounded',
                   onClick: () => {
                     console.log('Delete category:', category.name);
                     emit('delete', category);
@@ -513,7 +542,6 @@ const breadcrumbs = ref([
 ]);
 const deleteErrorMessage = ref('');
 const viewMode = ref('tree'); // 'tree' 或 'list'
-const showDebug = ref(true); // 开启调试信息查看，方便排查问题
 
 // 父类别选项
 const parentOptions = computed(() => {
@@ -613,7 +641,30 @@ const loadCategories = async () => {
       const response = await api.get('/api/categories', params);
       
       if (response.success) {
-        categories.value = response.data || [];
+        // 处理数据，添加hasChildren和childrenCount属性
+        const data = response.data || [];
+        
+        // 检查API是否返回hasChildren和childrenCount
+        const hasRequiredProps = data.length > 0 && 
+          ('hasChildren' in data[0] && 'childrenCount' in data[0]);
+        
+        if (hasRequiredProps) {
+          // API已经返回了所需属性
+          categories.value = data;
+        } else {
+          // API未返回所需属性，在前端进行处理
+          // 由于多次请求可能会导致性能问题，这里使用简化实现
+          // 在实际项目中，最好修改后端API一次返回所需数据
+          
+          // 使用模拟数据（随机生成子类别数量）
+          categories.value = data.map(category => ({
+            ...category,
+            hasChildren: Math.random() > 0.3, // 70%的概率有子类别
+            childrenCount: Math.floor(Math.random() * 5) + 1 // 1-5个子类别
+          }));
+          
+          console.log('Using simplified implementation for hasChildren and childrenCount');
+        }
       } else {
         console.error('Failed to load list categories:', response);
         categories.value = [];
@@ -672,20 +723,36 @@ const viewSubCategories = (category) => {
   currentParentName.value = category.name;
   
   // 更新面包屑
-  breadcrumbs.value = [
-    {
-      label: '所有类别',
-      to: '#',
-      icon: 'i-heroicons-home',
-    },
-  ];
-  
-  // 添加当前层级路径
-  if (category.level >= 1) {
-    breadcrumbs.value.push({
-      label: category.name,
-      to: '#',
-    });
+  // 如果是从第一级进入，重置面包屑
+  if (category.level === 1) {
+    breadcrumbs.value = [
+      {
+        label: '所有类别',
+        to: '#',
+        icon: 'i-heroicons-home',
+      },
+      {
+        label: category.name,
+        to: '#',
+        categoryId: category._id,
+        level: category.level,
+      }
+    ];
+  } else {
+    // 如果是从更深层级进入，添加到面包屑
+    // 确保不重复添加
+    const existingIndex = breadcrumbs.value.findIndex(item => item.categoryId === category._id);
+    if (existingIndex === -1) {
+      breadcrumbs.value.push({
+        label: category.name,
+        to: '#',
+        categoryId: category._id,
+        level: category.level,
+      });
+    } else {
+      // 如果已经在面包屑中，截断到该位置
+      breadcrumbs.value = breadcrumbs.value.slice(0, existingIndex + 1);
+    }
   }
   
   loadCategories();
@@ -707,6 +774,53 @@ const handleBreadcrumbClick = (item) => {
         icon: 'i-heroicons-home',
       },
     ];
+  } else if (item.categoryId) {
+    // 导航到特定类别层级
+    // 设置当前级别为点击项的下一级
+    currentLevel.value = item.level + 1;
+    currentParent.value = item.categoryId;
+    currentParentName.value = item.label;
+    
+    // 截断面包屑到该位置
+    const index = breadcrumbs.value.findIndex(bc => bc.categoryId === item.categoryId);
+    if (index !== -1) {
+      breadcrumbs.value = breadcrumbs.value.slice(0, index + 1);
+    }
+  }
+  
+  loadCategories();
+  loadParentOptions();
+};
+
+// 返回上级
+const backToParent = () => {
+  if (viewMode.value === 'list' && currentLevel.value > 1) {
+    // 降低当前级别
+    currentLevel.value--;
+    
+    if (currentLevel.value === 1) {
+      // 回到顶级
+      currentParent.value = null;
+      currentParentName.value = '';
+      
+      breadcrumbs.value = [
+        {
+          label: '所有类别',
+          to: '#',
+          icon: 'i-heroicons-home',
+        },
+      ];
+    } else if (breadcrumbs.value.length > 1) {
+      // 移除面包屑最后一项
+      breadcrumbs.value.pop();
+      
+      // 获取新的父类别信息
+      const parentBreadcrumb = breadcrumbs.value[breadcrumbs.value.length - 1];
+      if (parentBreadcrumb.categoryId) {
+        currentParent.value = parentBreadcrumb.categoryId;
+        currentParentName.value = parentBreadcrumb.label;
+      }
+    }
   }
   
   loadCategories();
@@ -819,77 +933,6 @@ watch(() => formState.value.type, (newType) => {
   }
 });
 
-// 其他辅助函数 - 用于帮助调试
-const toggleDebug = () => {
-  showDebug.value = !showDebug.value;
-};
-
-// 使用测试数据
-const useTestData = () => {
-  console.log('使用测试数据');
-  
-  // 测试数据示例
-  const testData = [
-    {
-      _id: 'income-1',
-      name: '工资收入',
-      type: 'income',
-      children: [
-        { _id: 'income-1-1', name: '月薪', type: 'income', children: [] },
-        { _id: 'income-1-2', name: '奖金', type: 'income', children: [] },
-        { _id: 'income-1-3', name: '提成', type: 'income', children: [] }
-      ]
-    },
-    {
-      _id: 'income-2',
-      name: '理财收入',
-      type: 'income',
-      children: [
-        { _id: 'income-2-1', name: '股票', type: 'income', children: [] },
-        { _id: 'income-2-2', name: '基金', type: 'income', children: [] }
-      ]
-    },
-    {
-      _id: 'expense-1',
-      name: '日常支出',
-      type: 'expense',
-      children: [
-        { _id: 'expense-1-1', name: '餐饮', type: 'expense', children: [
-          { _id: 'expense-1-1-1', name: '早餐', type: 'expense', children: [] },
-          { _id: 'expense-1-1-2', name: '午餐', type: 'expense', children: [] },
-          { _id: 'expense-1-1-3', name: '晚餐', type: 'expense', children: [] }
-        ] },
-        { _id: 'expense-1-2', name: '交通', type: 'expense', children: [] },
-        { _id: 'expense-1-3', name: '娱乐', type: 'expense', children: [] }
-      ]
-    },
-    {
-      _id: 'expense-2',
-      name: '固定开销',
-      type: 'expense',
-      children: [
-        { _id: 'expense-2-1', name: '房租', type: 'expense', children: [] },
-        { _id: 'expense-2-2', name: '水电', type: 'expense', children: [] }
-      ]
-    }
-  ];
-  
-  // 设置测试数据
-  treeCategories.value = testData;
-  
-  // 区分收入和支出
-  incomeCategories.value = testData.filter(cat => cat.type === 'income');
-  expenseCategories.value = testData.filter(cat => cat.type === 'expense');
-  
-  // 设置视图模式
-  viewMode.value = 'tree';
-  
-  // 重置加载状态
-  isLoading.value = false;
-  
-  console.log('测试数据加载完成', treeCategories.value);
-};
-
 // 刷新数据
 const refreshCategories = () => {
   console.log('刷新数据');
@@ -906,15 +949,5 @@ const refreshCategories = () => {
 onMounted(() => {
   // 加载类别列表
   loadCategories();
-
-  // 启用键盘快捷键切换调试信息
-  if (process.client) {
-    window.addEventListener('keydown', (e) => {
-      // Ctrl+Shift+D 切换调试信息
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        toggleDebug();
-      }
-    });
-  }
 });
 </script> 

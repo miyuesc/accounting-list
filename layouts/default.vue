@@ -2,39 +2,64 @@
   <div class="min-h-screen bg-gray-50">
     <div v-if="isAuthenticated" class="flex h-screen overflow-hidden">
       <!-- 侧边栏 -->
-      <div class="w-64 bg-white shadow-md">
-        <div class="p-4 border-b">
-          <h1 class="text-xl font-bold text-gray-800">记账助手</h1>
-          <p class="text-sm text-gray-500">欢迎, {{ user.name }}</p>
+      <div class="w-64 bg-white shadow-md flex flex-col">
+        <div class="p-5 border-b border-gray-100">
+          <h1 class="text-xl font-bold text-blue-600">记账助手</h1>
+          <p class="text-sm text-gray-500 mt-1">欢迎, {{ user.name }}</p>
         </div>
-        <nav class="mt-4">
-          <UButton
+        <nav class="mt-6 flex-1 px-2 space-y-1">
+          <NuxtLink
             v-for="(item, index) in navItems"
             :key="index"
             :to="item.to"
-            variant="ghost"
-            class="w-full justify-start mb-1 rounded-none"
-            :icon="item.icon"
+            :class="[
+              'nav-link',
+              isActiveRoute(item.to) ? 'nav-link-active' : ''
+            ]"
           >
-            {{ item.label }}
-          </UButton>
+            <UIcon :name="item.icon" class="w-5 h-5 mr-3" />
+            <span>{{ item.label }}</span>
+            <UIcon 
+              v-if="isActiveRoute(item.to)"
+              name="i-heroicons-chevron-right" 
+              class="ml-auto w-4 h-4" 
+            />
+          </NuxtLink>
         </nav>
-      </div>
-      
-      <!-- 主要内容 -->
-      <div class="flex-1 overflow-y-auto">
-        <header class="bg-white shadow-sm p-4 flex justify-between items-center">
-          <h1 class="text-xl font-semibold text-gray-800">
-            {{ currentPageTitle }}
-          </h1>
+        <div class="p-4 border-t border-gray-100">
           <UButton 
+            block
             icon="i-heroicons-arrow-right-on-rectangle" 
             color="gray" 
             variant="ghost" 
             @click="logout"
+            class="justify-start"
           >
             退出登录
           </UButton>
+        </div>
+      </div>
+      
+      <!-- 主要内容 -->
+      <div class="flex-1 overflow-y-auto bg-gray-50">
+        <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center sticky top-0 z-10">
+          <h1 class="text-xl font-semibold text-gray-800">
+            {{ currentPageTitle }}
+          </h1>
+          <div class="flex items-center space-x-4">
+            <UButton 
+              icon="i-heroicons-bell" 
+              color="gray" 
+              variant="ghost" 
+              class="rounded-full w-10 h-10 p-0 flex items-center justify-center"
+            />
+            <div class="flex items-center">
+              <span class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center mr-2">
+                {{ user.name ? user.name.charAt(0).toUpperCase() : 'U' }}
+              </span>
+              <span class="text-sm font-medium text-gray-700">{{ user.name }}</span>
+            </div>
+          </div>
         </header>
         <main class="p-6">
           <slot />
@@ -62,6 +87,11 @@ const navItems = [
   { label: '基础消费', to: '/basic-expenses', icon: 'i-heroicons-home' },
   { label: '设置', to: '/settings', icon: 'i-heroicons-cog-6-tooth' },
 ];
+
+// 检查是否为当前激活路由
+const isActiveRoute = (path) => {
+  return route.path.startsWith(path);
+};
 
 // 根据当前路由获取页面标题
 const currentPageTitle = computed(() => {
