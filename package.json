@@ -1,0 +1,30 @@
+{
+  "name": "accounting-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "chart.js": "^4.4.0",
+    "dayjs": "^1.11.10",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.11.0",
+    "nuxt": "^3.15.4",
+    "vue": "latest",
+    "vue-chartjs": "^5.2.0",
+    "vue-router": "latest",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@nuxt/ui": "^2.11.0",
+    "@nuxtjs/tailwindcss": "^6.10.0",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.9"
+  }
+}
