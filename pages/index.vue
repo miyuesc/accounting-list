@@ -7,13 +7,7 @@
         <p class="text-xl opacity-90">轻松管理个人财务，掌握你的收支情况</p>
         
         <div class="mt-6 flex flex-wrap gap-3">
-          <UButton v-if="!isLoggedIn" to="/login" color="white" variant="solid" class="text-primary-600">
-            登录
-          </UButton>
-          <UButton v-if="!isLoggedIn" to="/register" color="white" variant="outline">
-            注册账号
-          </UButton>
-          <UButton v-if="isLoggedIn" to="/transactions" color="white" variant="solid" class="text-primary-600">
+          <UButton to="/transactions" color="white" variant="solid" class="text-primary-600">
             查看我的账单
           </UButton>
         </div>
@@ -44,18 +38,10 @@
       <div class="bg-gray-50 rounded-lg p-8 mb-10">
         <h2 class="text-2xl font-semibold mb-6 text-center">如何使用记账助手</h2>
         
-        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="grid md:grid-cols-3 gap-6">
           <div class="text-center">
             <div class="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-primary-500 border border-primary-100">
               1
-            </div>
-            <h4 class="font-medium mb-1">注册账号</h4>
-            <p class="text-sm text-gray-600">创建个人账户，开始使用所有功能</p>
-          </div>
-          
-          <div class="text-center">
-            <div class="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-primary-500 border border-primary-100">
-              2
             </div>
             <h4 class="font-medium mb-1">创建分类</h4>
             <p class="text-sm text-gray-600">设置个性化的收支分类体系</p>
@@ -63,7 +49,7 @@
           
           <div class="text-center">
             <div class="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-primary-500 border border-primary-100">
-              3
+              2
             </div>
             <h4 class="font-medium mb-1">记录交易</h4>
             <p class="text-sm text-gray-600">随时添加收入和支出记录</p>
@@ -71,7 +57,7 @@
           
           <div class="text-center">
             <div class="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-primary-500 border border-primary-100">
-              4
+              3
             </div>
             <h4 class="font-medium mb-1">查看报表</h4>
             <p class="text-sm text-gray-600">分析收支情况，优化财务管理</p>
@@ -81,20 +67,17 @@
       
       <!-- 快速入口 -->
       <div class="flex flex-wrap justify-center gap-4">
-        <UButton v-if="isLoggedIn" to="/transactions" color="primary">
+        <UButton to="/transactions" color="primary">
           账单列表
         </UButton>
-        <UButton v-if="isLoggedIn" to="/reports" color="primary" variant="outline">
+        <UButton to="/reports" color="primary" variant="outline">
           统计报表
         </UButton>
-        <UButton v-if="isLoggedIn" to="/categories" color="primary" variant="outline">
+        <UButton to="/categories" color="primary" variant="outline">
           分类管理
         </UButton>
-        <UButton v-if="isLoggedIn" to="/basic-expenses" color="primary" variant="outline">
+        <UButton to="/basic-expenses" color="primary" variant="outline">
           基础消费
-        </UButton>
-        <UButton v-if="!isLoggedIn" to="/login" color="primary">
-          立即开始
         </UButton>
       </div>
     </div>
@@ -102,13 +85,5 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-
-// 检查用户是否已登录
-const isLoggedIn = computed(() => {
-  if (process.client) {
-    return !!localStorage.getItem('token') && !!localStorage.getItem('userId');
-  }
-  return false;
-});
+// 移除登录检查逻辑，假设用户已登录
 </script> 

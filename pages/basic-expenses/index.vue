@@ -8,9 +8,10 @@
     </div>
     
     <!-- 基础消费说明 -->
-    <UAlert class="mb-6" color="blue" variant="soft" icon="i-heroicons-information-circle">
-      <h3 class="font-medium mb-1">什么是基础消费？</h3>
-      <p>基础消费是每月固定支出的项目，如房租、水电费等。这些消费可以被标记并在报表中单独统计。</p>
+    <UAlert class="mb-6" color="blue" variant="soft" icon="i-heroicons-information-circle" title="什么是基础消费？">
+      <template #description>
+        基础消费是每月固定支出的项目，如房租、水电费等。这些消费可以被标记并在报表中单独统计。
+      </template>
     </UAlert>
     
     <!-- 基础消费列表 -->
