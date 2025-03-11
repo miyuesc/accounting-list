@@ -81,6 +81,20 @@ const isLoading = ref(false);
 const errorMessage = ref('');
 const successMessage = ref('');
 
+// 不带认证头的API调用，专用于登录/注册
+const fetchWithoutAuth = async (url, options = {}) => {
+  return await $fetch(url, {
+    ...options,
+    // 确保不带任何认证头
+    headers: {
+      ...options.headers,
+      // 显式设置为undefined覆盖全局设置
+      'x-user-id': undefined,
+      'Authorization': undefined
+    }
+  });
+};
+
 // 处理注册
 const handleRegister = async () => {
   try {
@@ -88,8 +102,8 @@ const handleRegister = async () => {
     errorMessage.value = '';
     successMessage.value = '';
     
-    // 调用注册API
-    const response = await $fetch('/api/auth/register', {
+    // 调用注册API - 使用不带认证头的方法
+    const response = await fetchWithoutAuth('/api/auth/register', {
       method: 'POST',
       body: formState.value,
     });

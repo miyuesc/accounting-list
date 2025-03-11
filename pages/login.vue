@@ -42,8 +42,8 @@
       color="red"
       variant="soft"
       icon="i-heroicons-exclamation-triangle"
+      :discreption="errorMessage"
     >
-      {{ errorMessage }}
     </UAlert>
   </div>
 </template>

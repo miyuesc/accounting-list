@@ -17,6 +17,11 @@ const isProtectedRoute = (path: string): boolean => {
   return protectedRoutes.some(route => path.startsWith(route));
 };
 
+// 检查是否是认证相关路由
+const isAuthRoute = (path: string): boolean => {
+  return path.startsWith('/api/auth/login') || path.startsWith('/api/auth/register');
+};
+
 export interface JwtPayload {
   userId: string;
   username: string;
@@ -64,6 +69,11 @@ export const verifyAuth = defineEventHandler(async (event) => {
 // 认证中间件
 export default defineEventHandler(async (event) => {
   const path = event.path || event.node.req.url || '';
+  
+  // 如果是认证相关路由（登录/注册），直接放行
+  if (isAuthRoute(path)) {
+    return;
+  }
   
   // 如果不是受保护的路由，直接放行
   if (!isProtectedRoute(path)) {

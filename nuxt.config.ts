@@ -15,5 +15,13 @@ export default defineNuxtConfig({
   },
   nitro: {
     plugins: ['~/server/index.ts']
+  },
+  tailwindcss: {
+    exposeConfig: true,
+    viewer: true,
+    configPath: '~/tailwind.config.js',
+  },
+  alias: {
+    '#tailwind-config': '~/tailwind.config.js'
   }
 })
