@@ -3,10 +3,13 @@ import { Category } from '~/server/models/category';
 import { connectToDatabase } from '~/server/utils/db';
 import { z } from 'zod';
 
-// 创建类别验证模式
+// 类别创建验证模式
 const categorySchema = z.object({
   name: z.string().min(1, '类别名称是必需的'),
   parentId: z.string().nullable().optional(),
+  type: z.enum(['income', 'expense'], { 
+    errorMap: () => ({ message: '类型必须是收入(income)或支出(expense)' }) 
+  }),
 });
 
 export default defineEventHandler(async (event) => {
@@ -26,12 +29,13 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    const { name, parentId } = validationResult.data;
+    const { name, parentId, type } = validationResult.data;
     
-    // 如果有parentId，确保父类别存在
+    // 初始值
     let level = 1;
     let path = '';
     
+    // 如果有父类别，检查并设置相关属性
     if (parentId) {
       const parentCategory = await Category.findById(parentId);
       
@@ -42,11 +46,11 @@ export default defineEventHandler(async (event) => {
         });
       }
       
-      // 确保不超过最大层级
+      // 检查层级限制
       if (parentCategory.level >= 3) {
         throw createError({
           statusCode: 400,
-          statusMessage: '不能创建超过3层的类别',
+          statusMessage: '最多支持3级分类',
         });
       }
       
@@ -58,9 +62,11 @@ export default defineEventHandler(async (event) => {
       name,
       parentId: parentId || null,
       level,
-      path, // 路径会在保存前自动更新
+      path, // 将在保存前自动更新
+      type,
     });
     
+    // 保存到数据库
     await newCategory.save();
     
     return {
@@ -68,12 +74,12 @@ export default defineEventHandler(async (event) => {
       data: newCategory,
     };
   } catch (error: any) {
-    console.error('创建类别错误:', error);
-    
+    // 处理错误
     if (error.statusCode) {
-      throw error;
+      throw error; // 如果是已经格式化的错误，直接抛出
     }
     
+    console.error('创建类别错误:', error);
     throw createError({
       statusCode: 500,
       statusMessage: '创建类别时发生错误',

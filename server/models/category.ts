@@ -6,6 +6,7 @@ export interface ICategory extends mongoose.Document {
   parentId: mongoose.Schema.Types.ObjectId | null; // 父类型ID，顶级类型为null
   level: number;        // 层级，从1开始（1=一级类型，2=二级类型，以此类推）
   path: string;         // 类型路径，格式为"id1,id2,..."，用于快速查询层级关系
+  type: string;         // 类型：income(收入) 或 expense(支出)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +32,12 @@ const categorySchema = new mongoose.Schema<ICategory>(
     },
     path: {
       type: String,
-      required: true,
+      required: false,
+    },
+    type: {
+      type: String,
+      enum: ['income', 'expense'],
+      required: [true, '类型是必需的'],
     },
     createdAt: {
       type: Date,
@@ -59,6 +65,9 @@ categorySchema.pre('save', async function(next) {
           throw new Error('父类型不存在');
         }
         
+        // 确保子类别与父类别的类型一致
+        this.type = parentCategory.type;
+        
         // 更新路径和层级
         this.path = parentCategory.path ? `${parentCategory.path},${this._id}` : `${this._id}`;
         this.level = parentCategory.level + 1;
@@ -83,6 +92,7 @@ categorySchema.pre('findOneAndUpdate', function() {
 categorySchema.index({ parentId: 1 });
 categorySchema.index({ level: 1 });
 categorySchema.index({ path: 1 });
+categorySchema.index({ type: 1 });
 
 // 创建并导出账单类型字典模型
 export const Category = mongoose.model<ICategory>('Category', categorySchema);
