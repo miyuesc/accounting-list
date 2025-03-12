@@ -87,6 +87,28 @@
             option-attribute="label"
           />
         </UFormGroup>
+
+        <!-- 添加类型选择器 -->
+        <UFormGroup label="交易类型">
+          <USelectMenu
+            v-model="filters.type"
+            :options="reportTypeOptions"
+            placeholder="选择类型"
+            value-attribute="value"
+            option-attribute="label"
+          />
+        </UFormGroup>
+
+        <!-- 添加类别筛选器 -->
+        <UFormGroup label="类别">
+          <USelectMenu
+            v-model="filters.categoryId"
+            :options="filteredCategoryOptions"
+            placeholder="选择类别"
+            value-attribute="value"
+            option-attribute="label"
+          />
+        </UFormGroup>
       </div>
       
       <div class="flex justify-end mt-4">
@@ -103,72 +125,63 @@
     
     <!-- 报表内容 -->
     <template v-else-if="hasData">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- 收入支出总览 -->
-        <div class="bg-white p-4 rounded-lg shadow-sm">
-          <h3 class="text-lg font-medium mb-4">总览</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div class="bg-green-50 p-4 rounded-lg">
-              <div class="text-sm text-green-600 mb-1">总收入</div>
-              <div class="text-2xl font-bold text-green-700">
-                {{ formatCurrency(summary.totalIncome) }}
-              </div>
-            </div>
-            <div class="bg-red-50 p-4 rounded-lg">
-              <div class="text-sm text-red-600 mb-1">总支出</div>
-              <div class="text-2xl font-bold text-red-700">
-                {{ formatCurrency(summary.totalExpense) }}
-              </div>
-            </div>
-            <div class="bg-blue-50 p-4 rounded-lg">
-              <div class="text-sm text-blue-600 mb-1">结余</div>
-              <div class="text-2xl font-bold" :class="summary.balance >= 0 ? 'text-blue-700' : 'text-red-700'">
-                {{ formatCurrency(summary.balance) }}
-              </div>
-            </div>
-            <div class="bg-purple-50 p-4 rounded-lg">
-              <div class="text-sm text-purple-600 mb-1">交易次数</div>
-              <div class="text-2xl font-bold text-purple-700">
-                {{ summary.totalCount }}
-              </div>
+      <!-- 收入支出总览 -->
+      <div class="mb-6 bg-white p-4 rounded-lg shadow-sm">
+        <h3 class="text-lg font-medium mb-4">总览</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-green-50 p-4 rounded-lg">
+            <div class="text-sm text-green-600 mb-1">总收入</div>
+            <div class="text-2xl font-bold text-green-700">
+              {{ formatCurrency(summary.totalIncome) }}
             </div>
           </div>
-          
-          <!-- 基础消费统计 -->
-          <div class="mt-4 bg-orange-50 p-4 rounded-lg">
-            <div class="flex justify-between items-center">
-              <div>
-                <div class="text-sm text-orange-600 mb-1">基础消费总额</div>
-                <div class="text-xl font-bold text-orange-700">
-                  {{ formatCurrency(summary.totalBasicExpense) }}
-                </div>
-              </div>
-              <div>
-                <div class="text-sm text-orange-600 mb-1">占总支出比例</div>
-                <div class="text-xl font-bold text-orange-700">
-                  {{ summary.basicExpensePercentage.toFixed(1) }}%
-                </div>
-              </div>
-              <div>
-                <div class="text-sm text-orange-600 mb-1">基础消费笔数</div>
-                <div class="text-xl font-bold text-orange-700">
-                  {{ summary.basicExpenseCount }}
-                </div>
-              </div>
+          <div class="bg-red-50 p-4 rounded-lg">
+            <div class="text-sm text-red-600 mb-1">总支出</div>
+            <div class="text-2xl font-bold text-red-700">
+              {{ formatCurrency(summary.totalExpense) }}
+            </div>
+          </div>
+          <div class="bg-blue-50 p-4 rounded-lg">
+            <div class="text-sm text-blue-600 mb-1">结余</div>
+            <div class="text-2xl font-bold" :class="summary.balance >= 0 ? 'text-blue-700' : 'text-red-700'">
+              {{ formatCurrency(summary.balance) }}
+            </div>
+          </div>
+          <div class="bg-purple-50 p-4 rounded-lg">
+            <div class="text-sm text-purple-600 mb-1">交易次数</div>
+            <div class="text-2xl font-bold text-purple-700">
+              {{ summary.totalCount }}
             </div>
           </div>
         </div>
         
-        <!-- 收入支出趋势图 -->
-        <div class="bg-white p-4 rounded-lg shadow-sm">
-          <h3 class="text-lg font-medium mb-4">收支趋势</h3>
-          <div class="h-64">
-            <canvas ref="trendChart"></canvas>
+        <!-- 基础消费统计 -->
+        <div class="mt-4 bg-orange-50 p-4 rounded-lg">
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-sm text-orange-600 mb-1">基础消费总额</div>
+              <div class="text-xl font-bold text-orange-700">
+                {{ formatCurrency(summary.totalBasicExpense) }}
+              </div>
+            </div>
+            <div>
+              <div class="text-sm text-orange-600 mb-1">占总支出比例</div>
+              <div class="text-xl font-bold text-orange-700">
+                {{ summary.basicExpensePercentage.toFixed(1) }}%
+              </div>
+            </div>
+            <div>
+              <div class="text-sm text-orange-600 mb-1">基础消费笔数</div>
+              <div class="text-xl font-bold text-orange-700">
+                {{ summary.basicExpenseCount }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        
         <!-- 收入分类饼图 -->
         <div class="bg-white p-4 rounded-lg shadow-sm">
           <h3 class="text-lg font-medium mb-4">收入分类</h3>
@@ -193,17 +206,25 @@
       </div>
       
       <!-- 详细数据表格 -->
-      <div class="mt-6 bg-white rounded-lg shadow-sm overflow-hidden">
-        <UDivider class="mb-0 mt-6" />
+      <div class="mb-6 bg-white rounded-lg shadow-sm overflow-hidden">
         <h3 class="text-lg font-medium p-4">详细数据</h3>
         
         <UTabs :items="tabItems">
           <template #income>
             <UTable 
               :columns="tableColumns" 
-              :rows="incomeData"
+              :rows="incomeDataTree"
               :empty-state="{ icon: 'i-heroicons-banknotes', label: '暂无收入数据' }"
             >
+              <template #name-data="{ row }">
+                <div :style="{ paddingLeft: `${row.level * 20}px` }" class="flex items-center">
+                  <UIcon v-if="row.hasChildren" 
+                         :name="row.isExpanded ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
+                         class="mr-1 cursor-pointer"
+                         @click="toggleTreeNode(row, 'income')" />
+                  <span>{{ row.name }}</span>
+                </div>
+              </template>
               <template #amount-data="{ row }">
                 {{ formatCurrency(row.amount) }}
               </template>
@@ -224,9 +245,18 @@
           <template #expense>
             <UTable 
               :columns="tableColumns" 
-              :rows="expenseData"
+              :rows="expenseDataTree"
               :empty-state="{ icon: 'i-heroicons-banknotes', label: '暂无支出数据' }"
             >
+              <template #name-data="{ row }">
+                <div :style="{ paddingLeft: `${row.level * 20}px` }" class="flex items-center">
+                  <UIcon v-if="row.hasChildren" 
+                         :name="row.isExpanded ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
+                         class="mr-1 cursor-pointer"
+                         @click="toggleTreeNode(row, 'expense')" />
+                  <span>{{ row.name }}</span>
+                </div>
+              </template>
               <template #amount-data="{ row }">
                 {{ formatCurrency(row.amount) }}
               </template>
@@ -289,6 +319,14 @@
             </div>
           </template>
         </UTabs>
+      </div>
+      
+      <!-- 收支趋势图 - 移到最底部，并根据条件显示 -->
+      <div v-if="showTrendChart" class="mb-6 bg-white p-4 rounded-lg shadow-sm">
+        <h3 class="text-lg font-medium mb-4">收支趋势</h3>
+        <div class="h-64">
+          <canvas ref="trendChart"></canvas>
+        </div>
       </div>
     </template>
     
@@ -419,7 +457,29 @@ const filters = ref({
   period: 'year',
   year: new Date().getFullYear(),
   includeBasicExpense: 1,
+  type: '',
 });
+
+// 添加类别选项变量
+const categoryOptions = ref([]);
+
+// 添加加载类别的函数
+const loadCategories = async () => {
+  try {
+    const response = await api.get('/api/categories', { userId: getUserId() });
+    
+    if (response.success && response.data) {
+      // 将类别转换为选择器需要的格式，并确保包含类型信息
+      categoryOptions.value = response.data.map(category => ({
+        label: category.name,
+        value: category._id || category.id,
+        type: category.type // 确保类别对象包含类型信息
+      }));
+    }
+  } catch (error) {
+    console.error('加载类别错误:', error);
+  }
+};
 
 // 报表数据
 const reportData = ref({});
@@ -452,6 +512,40 @@ const formatCurrency = (amount) => {
     minimumFractionDigits: 2,
   }).format(amount);
 };
+
+// 添加显示趋势图的计算属性
+const showTrendChart = computed(() => {
+  // 按月统计时不显示趋势图
+  return filters.value.period !== 'month' && hasData.value;
+});
+
+// 添加树形结构数据
+const incomeDataTree = ref([]);
+const expenseDataTree = ref([]);
+
+// 添加类型选择器
+const reportTypeOptions = [
+  { label: '全部', value: '' },
+  { label: '收入', value: 'income' },
+  { label: '支出', value: 'expense' }
+];
+
+// 添加计算属性，根据选择的类型筛选类别
+const filteredCategoryOptions = computed(() => {
+  if (!filters.value.type || !categoryOptions.value || categoryOptions.value.length === 0) {
+    return categoryOptions.value || [];
+  }
+  
+  return categoryOptions.value.filter(category => {
+    // 根据选择的类型筛选类别
+    if (filters.value.type === 'income') {
+      return category.type === 'income';
+    } else if (filters.value.type === 'expense') {
+      return category.type === 'expense';
+    }
+    return true; // 如果没有选择类型，返回所有类别
+  });
+});
 
 // 加载报表数据
 const loadReport = async () => {
@@ -551,12 +645,121 @@ const processReportData = () => {
     }))
     .sort((a, b) => b.amount - a.amount);
   
-  // 对于单一周期，可能没有周期数据，直接生成单一标签
-  if (filters.value.period === 'month' || filters.value.period === 'quarter' || filters.value.year) {
+  // 构建树形结构数据
+  buildCategoryTree();
+  
+  // 趋势图数据处理
+  if (data.monthlyData && (filters.value.period === 'year' || filters.value.period === 'quarter')) {
+    // 提取月度数据用于趋势图
+    periodLabels.value = data.monthlyData.map(item => item.period);
+    incomeByPeriod.value = data.monthlyData.map(item => item.income || 0);
+    expenseByPeriod.value = data.monthlyData.map(item => (item.expense || 0) - (item.basicExpense || 0));
+    basicExpenseByPeriod.value = data.monthlyData.map(item => item.basicExpense || 0);
+  } else {
+    // 单一周期数据
     periodLabels.value = [data.period];
     incomeByPeriod.value = [data.totalIncome];
-    expenseByPeriod.value = [data.totalExpense - data.totalBasicExpense]; // 不含基础消费的支出
+    expenseByPeriod.value = [data.totalExpense - data.totalBasicExpense];
     basicExpenseByPeriod.value = [data.totalBasicExpense];
+  }
+};
+
+// 构建类别树形结构
+const buildCategoryTree = () => {
+  // 处理收入类别树
+  const incomeCategoryTree = buildTreeFromCategories(
+    Object.entries(reportData.value.incomeByCategory || {})
+      .map(([id, category]) => ({
+        id,
+        name: category.name,
+        amount: category.amount,
+        count: category.count,
+        parentId: category.parentId,
+        percentage: (category.amount / reportData.value.totalIncome) * 100 || 0,
+      }))
+  );
+  
+  // 处理支出类别树 - 排除基础消费
+  const expenseCategoryTree = buildTreeFromCategories(
+    Object.entries(reportData.value.expenseByCategory || {})
+      .filter(([_, category]) => !category.isBasicExpense) // 排除基础消费
+      .map(([id, category]) => ({
+        id,
+        name: category.name,
+        amount: category.amount,
+        count: category.count,
+        parentId: category.parentId,
+        percentage: (category.amount / reportData.value.totalExpense) * 100 || 0,
+      }))
+  );
+  
+  // 将树转换为扁平结构，带有层级信息
+  incomeDataTree.value = flattenTree(incomeCategoryTree);
+  expenseDataTree.value = flattenTree(expenseCategoryTree);
+};
+
+// 从类别数组构建树
+const buildTreeFromCategories = (categories) => {
+  const nodes = {};
+  const rootNodes = [];
+  
+  // 创建所有节点
+  categories.forEach(category => {
+    nodes[category.id] = {
+      ...category,
+      children: [],
+      isExpanded: true, // 默认展开
+      hasChildren: false
+    };
+  });
+  
+  // 构建父子关系
+  categories.forEach(category => {
+    if (category.parentId && nodes[category.parentId]) {
+      // 有父节点，添加到父节点的children
+      nodes[category.parentId].children.push(nodes[category.id]);
+      nodes[category.parentId].hasChildren = true;
+    } else {
+      // 没有父节点，是根节点
+      rootNodes.push(nodes[category.id]);
+    }
+  });
+  
+  return rootNodes;
+};
+
+// 将树形结构扁平化，用于表格显示
+const flattenTree = (nodes, level = 0, result = []) => {
+  nodes.forEach(node => {
+    // 添加当前节点，带有层级信息
+    const nodeWithLevel = {
+      ...node,
+      level
+    };
+    
+    delete nodeWithLevel.children; // 删除children属性，避免表格渲染问题
+    
+    result.push(nodeWithLevel);
+    
+    // 如果节点展开且有子节点，递归添加子节点
+    if (node.isExpanded && node.children && node.children.length > 0) {
+      flattenTree(node.children, level + 1, result);
+    }
+  });
+  
+  return result;
+};
+
+// 切换树节点展开/折叠
+const toggleTreeNode = (node, type) => {
+  // 查找该节点并切换其展开状态
+  const allNodes = type === 'income' ? reportData.value.incomeByCategory : reportData.value.expenseByCategory;
+  
+  if (allNodes[node.id]) {
+    allNodes[node.id].isExpanded = !allNodes[node.id].isExpanded;
+    
+    // 重新构建树
+    buildCategoryTree();
   }
 };
 
@@ -710,9 +913,17 @@ const renderCharts = () => {
   }
 };
 
+// 监听类型变化，重置类别选择
+watch(() => filters.value.type, (newType) => {
+  // 类型变化时清空已选类别
+  filters.value.categoryId = '';
+});
+
 // 初始加载
 onMounted(() => {
   // 初始设置年份为当前年
   filters.value.year = new Date().getFullYear();
+  // 加载类别数据
+  loadCategories();
 });
 </script> 

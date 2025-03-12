@@ -23,7 +23,7 @@
         <UFormGroup label="类别">
           <USelectMenu
             v-model="filters.categoryId"
-            :options="categoryOptions"
+            :options="filteredCategoryOptions"
             placeholder="全部"
             value-attribute="value"
             option-attribute="label"
@@ -146,7 +146,7 @@
           <UFormGroup label="类别" name="categoryId">
             <USelectMenu
               v-model="formState.categoryId"
-              :options="categoryOptions"
+              :options="formCategoryOptions"
               placeholder="选择类别"
               value-attribute="value"
               option-attribute="label"
@@ -234,7 +234,7 @@ const columns = [
     label: '类型',
   },
   {
-    key: 'categoryId',
+    key: 'categoryName',
     label: '类别',
   },
   {
@@ -309,6 +309,40 @@ const formState = ref({
 const isEditing = ref(false);
 const currentTransaction = ref(null);
 
+// 添加计算属性，根据选择的类型筛选类别
+const filteredCategoryOptions = computed(() => {
+  // 获取所有类别
+  const allCategories = categoryOptions.value;
+  
+  // 如果没有选择类型或没有类别数据，返回全部
+  if (!filters.value.type || allCategories.length === 0) {
+    return allCategories;
+  }
+  
+  // 根据选择的类型筛选
+  return allCategories.filter(category => {
+    // 假设每个类别对象中有 type 属性表示其类型
+    // 如果您的类别对象结构不同，需要调整这里
+    return category.type === filters.value.type;
+  });
+});
+
+// 修改表单中的类别计算属性
+const formCategoryOptions = computed(() => {
+  // 获取所有类别
+  const allCategories = categoryOptions.value;
+  
+  // 如果没有选择类型或没有类别数据，返回全部
+  if (!formState.value.type || allCategories.length === 0) {
+    return allCategories;
+  }
+  
+  // 根据当前表单中选择的类型筛选
+  return allCategories.filter(category => {
+    return category.type === formState.value.type;
+  });
+});
+
 // 格式化金额
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('zh-CN', {
@@ -366,7 +400,7 @@ const loadTransactions = async () => {
     const response = await api.get('/api/transactions', params);
     
     if (response.success) {
-      transactions.value = response.data.transactions;
+      transactions.value = response.data.transactions?.map(i => ({ ...i, categoryId: i.categoryId._id, categoryName: i.categoryId.name }));;
       pagination.value = response.data.pagination;
     }
   } catch (error) {
@@ -485,6 +519,18 @@ const deleteTransaction = async () => {
     isDeleting.value = false;
   }
 };
+
+// 监听类型变化
+watch(() => formState.value.type, (newType) => {
+  // 类型变化时清空类别选择
+  formState.value.categoryId = '';
+});
+
+// 同样在筛选器中也监听类型变化
+watch(() => filters.value.type, (newType) => {
+  // 类型变化时清空类别选择
+  filters.value.categoryId = '';
+});
 
 // 初始加载
 onMounted(() => {
