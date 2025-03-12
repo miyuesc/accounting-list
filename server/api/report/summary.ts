@@ -14,6 +14,8 @@ interface CategoryData {
   amount: number;
   count: number;
   name: string;
+  type: string;
+  isBasicExpense: boolean;
   [key: string]: any;
 }
 
@@ -21,6 +23,8 @@ interface CategoryWithChildren extends Record<string, any> {
   _id: any;
   name: string;
   children: CategoryWithChildren[];
+  type: string;
+  isBasicExpense: boolean;
   [key: string]: any;
 }
 
@@ -119,7 +123,9 @@ export default defineEventHandler(async (event) => {
     categories.forEach(cat => {
       categoryMap.set(cat._id.toString(), {
         ...cat,
-        children: []
+        children: [],
+        type: cat.type,
+        isBasicExpense: !!cat.isBasicExpense
       });
     });
 
@@ -157,7 +163,9 @@ export default defineEventHandler(async (event) => {
           categoryData[catId] = {
             amount: 0,
             count: 0,
-            name: category ? category.name : '未知类别'
+            name: category ? category.name : '未知类别',
+            type: category ? category.type : transaction.type,
+            isBasicExpense: category ? !!category.isBasicExpense : false
           };
         }
         
@@ -188,7 +196,9 @@ export default defineEventHandler(async (event) => {
           categoryData[categoryId] = {
             amount: totalAmount,
             count: totalCount,
-            name: category.name || '未知类别'
+            name: category.name || '未知类别',
+            type: category.type,
+            isBasicExpense: category.isBasicExpense
           };
         } else {
           categoryData[categoryId].amount = totalAmount;
@@ -257,7 +267,9 @@ export default defineEventHandler(async (event) => {
           byCategory[catId] = {
             amount: 0,
             count: 0,
-            name: category ? category.name : '未知类别'
+            name: category ? category.name : '未知类别',
+            type: category ? category.type : 'expense',
+            isBasicExpense: true
           };
         }
         
@@ -308,6 +320,18 @@ export default defineEventHandler(async (event) => {
         break;
     }
     
+    // 添加月度数据处理逻辑（仅当查询年度或季度时）
+    let monthlyData = [];
+    if (period === 'year' || period === 'quarter') {
+      monthlyData = generateMonthlyData(
+        startDate, 
+        endDate, 
+        incomeTransactions, 
+        expenseTransactions, 
+        includeBasicExpense ? basicExpenses : []
+      );
+    }
+    
     // 构建结果
     const result = {
       period: periodLabel,
@@ -324,7 +348,8 @@ export default defineEventHandler(async (event) => {
       dateRange: {
         start: startDate,
         end: endDate
-      }
+      },
+      monthlyData
     };
     
     return {
@@ -343,4 +368,72 @@ export default defineEventHandler(async (event) => {
       statusMessage: '获取报表数据时发生错误',
     });
   }
-}); 
+});
+
+// 添加一个新函数来处理月度数据
+const generateMonthlyData = (startDate, endDate, incomeTransactions, expenseTransactions, basicExpenses) => {
+  const monthlyData = [];
+  
+  // 确定要计算多少个月
+  let currentDate = new Date(startDate);
+  const lastDate = new Date(endDate);
+  
+  while (currentDate <= lastDate) {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1; // JavaScript月份从0开始
+    
+    // 计算当月的开始和结束日期
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    
+    // 过滤出当月的交易
+    const monthIncomeTransactions = incomeTransactions.filter(t => {
+      const date = new Date(t.transactionDate);
+      return date >= monthStart && date <= monthEnd;
+    });
+    
+    const monthExpenseTransactions = expenseTransactions.filter(t => {
+      const date = new Date(t.transactionDate);
+      return date >= monthStart && date <= monthEnd;
+    });
+    
+    // 计算当月的收入和支出总额
+    const monthIncome = monthIncomeTransactions.reduce((sum, t) => {
+      const amount = typeof t.amount === 'number' ? t.amount : parseFloat(t.amount) || 0;
+      return sum + amount;
+    }, 0);
+    
+    const monthExpense = monthExpenseTransactions.reduce((sum, t) => {
+      const amount = typeof t.amount === 'number' ? t.amount : parseFloat(t.amount) || 0;
+      return sum + amount;
+    }, 0);
+    
+    // 计算当月的基础消费
+    let monthBasicExpense = 0;
+    if (basicExpenses && basicExpenses.length > 0) {
+      basicExpenses.forEach(expense => {
+        const expenseStart = new Date(expense.startDate);
+        const expenseEnd = new Date(expense.endDate);
+        
+        // 检查此基础消费在当月是否生效
+        if (!(expenseEnd < monthStart || expenseStart > monthEnd)) {
+          const amount = typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0;
+          monthBasicExpense += amount;
+        }
+      });
+    }
+    
+    // 添加当月数据
+    monthlyData.push({
+      period: `${year}-${month.toString().padStart(2, '0')}`,
+      income: monthIncome,
+      expense: monthExpense + monthBasicExpense,
+      basicExpense: monthBasicExpense
+    });
+    
+    // 移到下一个月
+    currentDate = new Date(year, month, 1);
+  }
+  
+  return monthlyData;
+}; 

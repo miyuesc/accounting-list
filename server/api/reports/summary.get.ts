@@ -34,20 +34,21 @@ export default defineEventHandler(async (event) => {
     // 连接数据库
     await connectToDatabase();
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id;
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取查询参数
     const query = getQuery(event);
     
-    const userId = query.userId as string;
     const period = query.period as 'week' | 'month' | 'quarter' | 'year';
     const year = parseInt(query.year as string || dayjs().year().toString());
     const categoryLevel = parseInt(query.categoryLevel as string || '1');
-    
-    if (!userId) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: '用户ID是必需的',
-      });
-    }
     
     if (!period || !['week', 'month', 'quarter', 'year'].includes(period)) {
       throw createError({

@@ -87,28 +87,6 @@
             option-attribute="label"
           />
         </UFormGroup>
-
-        <!-- 添加类型选择器 -->
-        <UFormGroup label="交易类型">
-          <USelectMenu
-            v-model="filters.type"
-            :options="reportTypeOptions"
-            placeholder="选择类型"
-            value-attribute="value"
-            option-attribute="label"
-          />
-        </UFormGroup>
-
-        <!-- 添加类别筛选器 -->
-        <UFormGroup label="类别">
-          <USelectMenu
-            v-model="filters.categoryId"
-            :options="filteredCategoryOptions"
-            placeholder="选择类别"
-            value-attribute="value"
-            option-attribute="label"
-          />
-        </UFormGroup>
       </div>
       
       <div class="flex justify-end mt-4">
@@ -156,7 +134,7 @@
         </div>
         
         <!-- 基础消费统计 -->
-        <div class="mt-4 bg-orange-50 p-4 rounded-lg">
+        <div v-if="displayBasicExpense" class="mt-4 bg-orange-50 p-4 rounded-lg">
           <div class="flex justify-between items-center">
             <div>
               <div class="text-sm text-orange-600 mb-1">基础消费总额</div>
@@ -209,7 +187,7 @@
       <div class="mb-6 bg-white rounded-lg shadow-sm overflow-hidden">
         <h3 class="text-lg font-medium p-4">详细数据</h3>
         
-        <UTabs :items="tabItems">
+        <UTabs :items="displayTabItems">
           <template #income>
             <UTable 
               :columns="tableColumns" 
@@ -342,6 +320,7 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { api, getUserId } from '~/utils/api';
 import { Chart, registerables } from 'chart.js';
 import dayjs from 'dayjs';
@@ -450,6 +429,19 @@ const tabItems = [
   },
 ];
 
+// 添加新的状态变量控制基础消费显示
+const displayBasicExpense = ref(true);
+
+// 根据是否包含基础消费动态显示标签页
+const displayTabItems = computed(() => {
+  if (displayBasicExpense.value) {
+    return tabItems;
+  } else {
+    // 过滤掉基础消费标签
+    return tabItems.filter(tab => tab.slot !== 'basicExpense');
+  }
+});
+
 // 状态变量
 const isLoading = ref(false);
 const hasData = ref(false);
@@ -466,14 +458,13 @@ const categoryOptions = ref([]);
 // 添加加载类别的函数
 const loadCategories = async () => {
   try {
-    const response = await api.get('/api/categories', { userId: getUserId() });
+    const response = await api.get('/api/categories');
     
-    if (response.success && response.data) {
-      // 将类别转换为选择器需要的格式，并确保包含类型信息
+    if (response.success) {
       categoryOptions.value = response.data.map(category => ({
         label: category.name,
         value: category._id || category.id,
-        type: category.type // 确保类别对象包含类型信息
+        type: category.type
       }));
     }
   } catch (error) {
@@ -558,10 +549,10 @@ const loadReport = async () => {
     
     // 基础参数
     const params = {
-      userId: getUserId(),
       period: filters.value.period,
       year: filters.value.year,
       includeBasicExpense: !!filters.value.includeBasicExpense,
+      includeMonthlyData: true, // 添加此参数，确保获取月度数据
     };
     
     // 根据周期类型添加必要参数
@@ -571,24 +562,36 @@ const loadReport = async () => {
       params.quarter = filters.value.quarter;
     }
     
-    console.log('Report params:', params);
+    // 类别分析级别
+    if (filters.value.categoryLevel) {
+      params.categoryLevel = filters.value.categoryLevel;
+    }
     
-    const response = await api.get('/api/report/summary', params);
+    // 发送报表请求
+    const response = await api.get('/api/reports/summary', params);
     
     if (response.success) {
       reportData.value = response.data;
-      processReportData();
-      hasData.value = true;
       
-      // 在下一个tick渲染图表，确保DOM已更新
-      nextTick(() => {
-        renderCharts();
-      });
+      // 不调用不存在的方法，数据处理将在finally块中进行
     }
   } catch (error) {
     console.error('加载报表错误:', error);
   } finally {
+    // 在成功加载报表后更新基础消费显示状态
+    displayBasicExpense.value = !!filters.value.includeBasicExpense;
+    
+    processReportData();
+    hasData.value = true;
     isLoading.value = false;
+    
+    // 使用延迟确保DOM完全更新
+    setTimeout(() => {
+      nextTick(() => {
+        console.log('准备渲染图表');
+        renderCharts();
+      });
+    }, 100);
   }
 };
 
@@ -600,6 +603,8 @@ const processReportData = () => {
     hasData.value = false;
     return;
   }
+  
+  console.log('处理报表数据:', data);
   
   // 使用新的数据结构
   summary.value = {
@@ -614,57 +619,96 @@ const processReportData = () => {
     basicExpensePercentage: data.totalExpense ? (data.totalBasicExpense / data.totalExpense) * 100 : 0,
   };
   
-  // 转换类别数据为数组
-  incomeData.value = Object.entries(data.incomeByCategory || {})
-    .map(([id, category]) => ({
-      id,
-      name: category.name,
-      amount: category.amount,
-      count: category.count,
-      percentage: (category.amount / data.totalIncome) * 100 || 0,
-    }))
-    .sort((a, b) => b.amount - a.amount);
+  console.log('Summary:', summary.value);
   
-  expenseData.value = Object.entries(data.expenseByCategory || {})
-    .map(([id, category]) => ({
-      id,
-      name: category.name,
-      amount: category.amount,
-      count: category.count,
-      percentage: (category.amount / data.totalExpense) * 100 || 0,
-    }))
-    .sort((a, b) => b.amount - a.amount);
+  // 转换类别数据为数组，使用类别的type属性过滤
+  if (data.incomeByCategory) {
+    incomeData.value = Object.entries(data.incomeByCategory)
+      .filter(([_, category]) => category.type === 'income') // 使用服务器返回的类型信息过滤
+      .map(([id, category]) => ({
+        id,
+        name: category.name,
+        amount: category.amount,
+        count: category.count,
+        percentage: (category.amount / (data.totalIncome || 1)) * 100 || 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  } else {
+    incomeData.value = [];
+  }
+  
+  if (data.expenseByCategory) {
+    expenseData.value = Object.entries(data.expenseByCategory)
+      .filter(([_, category]) => category.type === 'expense') // 使用服务器返回的类型信息过滤
+      .map(([id, category]) => ({
+        id,
+        name: category.name,
+        amount: category.amount,
+        count: category.count,
+        percentage: (category.amount / (data.totalExpense || 1)) * 100 || 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  } else {
+    expenseData.value = [];
+  }
     
-  basicExpenseData.value = Object.entries(data.basicExpenseByCategory || {})
-    .map(([id, category]) => ({
-      id,
-      name: category.name,
-      amount: category.amount,
-      count: category.count,
-      percentage: (category.amount / data.totalBasicExpense) * 100 || 0,
-    }))
-    .sort((a, b) => b.amount - a.amount);
+  if (data.basicExpenseByCategory) {
+    basicExpenseData.value = Object.entries(data.basicExpenseByCategory)
+      .filter(([_, category]) => category.type === 'expense') // 基础消费肯定是支出类型
+      .map(([id, category]) => ({
+        id,
+        name: category.name,
+        amount: category.amount,
+        count: category.count,
+        percentage: (category.amount / (data.totalBasicExpense || 1)) * 100 || 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  } else {
+    basicExpenseData.value = [];
+  }
+  
+  console.log('Income data:', incomeData.value);
+  console.log('Expense data:', expenseData.value);
   
   // 构建树形结构数据
   buildCategoryTree();
   
-  // 趋势图数据处理
-  if (data.monthlyData && (filters.value.period === 'year' || filters.value.period === 'quarter')) {
-    // 提取月度数据用于趋势图
-    periodLabels.value = data.monthlyData.map(item => item.period);
-    incomeByPeriod.value = data.monthlyData.map(item => item.income || 0);
-    expenseByPeriod.value = data.monthlyData.map(item => (item.expense || 0) - (item.basicExpense || 0));
-    basicExpenseByPeriod.value = data.monthlyData.map(item => item.basicExpense || 0);
+  // 趋势图数据处理 - 直接使用服务器返回的月度数据
+  processMonthlyTrendData(data);
+};
+
+// 月度趋势数据处理
+const processMonthlyTrendData = (data) => {
+  if (data.monthlyData && Array.isArray(data.monthlyData) && data.monthlyData.length > 0) {
+    // 确保月度数据按月份排序
+    const sortedMonthlyData = [...data.monthlyData].sort((a, b) => {
+      return a.period.localeCompare(b.period);
+    });
+    
+    // 提取月度标签 - 转换为更友好的显示格式
+    periodLabels.value = sortedMonthlyData.map(item => {
+      // 如果period格式为"2023-01"，转换为"1月"这样的格式
+      const parts = item.period.split('-');
+      if (parts.length === 2) {
+        return `${parseInt(parts[1])}月`;
+      }
+      return item.period;
+    });
+    
+    // 提取月度数据
+    incomeByPeriod.value = sortedMonthlyData.map(item => item.income || 0);
+    expenseByPeriod.value = sortedMonthlyData.map(item => (item.expense || 0) - (item.basicExpense || 0));
+    basicExpenseByPeriod.value = sortedMonthlyData.map(item => item.basicExpense || 0);
   } else {
-    // 单一周期数据
-    periodLabels.value = [data.period];
-    incomeByPeriod.value = [data.totalIncome];
-    expenseByPeriod.value = [data.totalExpense - data.totalBasicExpense];
-    basicExpenseByPeriod.value = [data.totalBasicExpense];
+    // 如果没有月度数据，则显示单一数据点
+    periodLabels.value = [data.period || '当前期间'];
+    incomeByPeriod.value = [data.totalIncome || 0];
+    expenseByPeriod.value = [(data.totalExpense || 0) - (data.totalBasicExpense || 0)];
+    basicExpenseByPeriod.value = [data.totalBasicExpense || 0];
   }
 };
 
-// 构建类别树形结构
+// 构建类别树形结构 - 移除类型过滤，依赖后端正确返回数据
 const buildCategoryTree = () => {
   // 处理收入类别树
   const incomeCategoryTree = buildTreeFromCategories(
@@ -675,21 +719,21 @@ const buildCategoryTree = () => {
         amount: category.amount,
         count: category.count,
         parentId: category.parentId,
-        percentage: (category.amount / reportData.value.totalIncome) * 100 || 0,
+        percentage: (category.amount / (reportData.value.totalIncome || 1)) * 100 || 0,
       }))
   );
   
-  // 处理支出类别树 - 排除基础消费
+  // 处理支出类别树 - 根据需要隐藏基础消费
   const expenseCategoryTree = buildTreeFromCategories(
     Object.entries(reportData.value.expenseByCategory || {})
-      .filter(([_, category]) => !category.isBasicExpense) // 排除基础消费
+      .filter(([_, category]) => displayBasicExpense.value || !category.isBasicExpense)
       .map(([id, category]) => ({
         id,
         name: category.name,
         amount: category.amount,
         count: category.count,
         parentId: category.parentId,
-        percentage: (category.amount / reportData.value.totalExpense) * 100 || 0,
+        percentage: (category.amount / (reportData.value.totalExpense || 1)) * 100 || 0,
       }))
   );
   
@@ -773,37 +817,45 @@ const renderCharts = () => {
   // 收支趋势图
   if (trendChart.value) {
     const ctx = trendChart.value.getContext('2d');
+    
+    // 准备数据集
+    const datasets = [
+      {
+        label: '收入',
+        data: incomeByPeriod.value,
+        borderColor: 'rgb(34, 197, 94)',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        fill: true,
+        tension: 0.2,
+      },
+      {
+        label: '支出',
+        data: expenseByPeriod.value,
+        borderColor: 'rgb(239, 68, 68)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fill: true,
+        tension: 0.2,
+      },
+    ];
+    
+    // 仅在包含基础消费时添加基础消费数据集
+    if (displayBasicExpense.value) {
+      datasets.push({
+        label: '基础消费',
+        data: basicExpenseByPeriod.value,
+        borderColor: 'rgb(249, 115, 22)',
+        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+        fill: true,
+        tension: 0.2,
+        borderDash: [5, 5], // 添加虚线样式，区分基础消费
+      });
+    }
+    
     trendChartInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: periodLabels.value,
-        datasets: [
-          {
-            label: '收入',
-            data: incomeByPeriod.value,
-            borderColor: 'rgb(34, 197, 94)',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            fill: true,
-            tension: 0.2,
-          },
-          {
-            label: '支出',
-            data: expenseByPeriod.value,
-            borderColor: 'rgb(239, 68, 68)',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            fill: true,
-            tension: 0.2,
-          },
-          {
-            label: '基础消费',
-            data: basicExpenseByPeriod.value,
-            borderColor: 'rgb(249, 115, 22)',
-            backgroundColor: 'rgba(249, 115, 22, 0.1)',
-            fill: true,
-            tension: 0.2,
-            borderDash: [5, 5], // 添加虚线样式，区分基础消费
-          },
-        ],
+        datasets: datasets,
       },
       options: {
         responsive: true,
@@ -816,10 +868,23 @@ const renderCharts = () => {
               },
             },
           },
+          legend: {
+            position: 'top',
+          },
         },
         scales: {
+          x: {
+            grid: {
+              display: false,
+            },
+          },
           y: {
             beginAtZero: true,
+            ticks: {
+              callback: function(value) {
+                return formatCurrency(value).split('.')[0]; // 简化Y轴显示
+              }
+            }
           },
         },
       },
@@ -844,7 +909,7 @@ const renderCharts = () => {
               'rgba(34, 197, 94, 0.6)',
               'rgba(34, 197, 94, 0.4)',
               'rgba(34, 197, 94, 0.2)',
-              ...Array(labels.length - 4).fill('rgba(34, 197, 94, 0.7)'),
+              'rgba(34, 197, 94, 0.7)',
             ],
             borderWidth: 1,
           },
@@ -887,7 +952,7 @@ const renderCharts = () => {
               'rgba(239, 68, 68, 0.6)',
               'rgba(239, 68, 68, 0.4)',
               'rgba(239, 68, 68, 0.2)',
-              ...Array(labels.length - 4).fill('rgba(239, 68, 68, 0.7)'),
+              'rgba(239, 68, 68, 0.7)',
             ],
             borderWidth: 1,
           },

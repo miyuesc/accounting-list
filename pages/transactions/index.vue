@@ -9,7 +9,7 @@
     
     <!-- 过滤器 -->
     <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <UFormGroup label="类型">
           <USelectMenu
             v-model="filters.type"
@@ -30,24 +30,12 @@
           />
         </UFormGroup>
         
-        <UFormGroup label="时间范围">
-          <USelectMenu
-            v-model="filters.period"
-            :options="periodOptions"
-            placeholder="自定义"
-            value-attribute="value"
-            option-attribute="label"
-          />
-        </UFormGroup>
-        
-        <UFormGroup label="基础消费">
-          <USelectMenu
-            v-model="filters.isBasicExpense"
-            :options="basicExpenseOptions"
-            placeholder="全部"
-            value-attribute="value"
-            option-attribute="label"
-          />
+        <UFormGroup label="日期范围">
+          <div class="flex space-x-2">
+            <UInput v-model="filters.startDate" type="date" placeholder="开始日期" />
+            <span class="self-center">至</span>
+            <UInput v-model="filters.endDate" type="date" placeholder="结束日期" />
+          </div>
         </UFormGroup>
       </div>
       
@@ -78,11 +66,6 @@
         
         <template #transactionDate-data="{ row }">
           {{ formatDate(row.transactionDate) }}
-        </template>
-        
-        <template #isBasicExpense-data="{ row }">
-          <UIcon v-if="row.isBasicExpense" name="i-heroicons-check" class="text-green-500" />
-          <UIcon v-else name="i-heroicons-x-mark" class="text-gray-400" />
         </template>
         
         <template #actions-data="{ row }">
@@ -170,10 +153,6 @@
           <UFormGroup label="描述" name="description">
             <UTextarea v-model="formState.description" placeholder="请输入描述" />
           </UFormGroup>
-          
-          <UFormGroup>
-            <UCheckbox v-model="formState.isBasicExpense" label="基础消费" />
-          </UFormGroup>
         </UForm>
         
         <template #footer>
@@ -251,10 +230,6 @@ const columns = [
     sortable: true,
   },
   {
-    key: 'isBasicExpense',
-    label: '基础消费',
-  },
-  {
     key: 'actions',
     label: '操作',
   },
@@ -264,18 +239,6 @@ const columns = [
 const typeOptions = [
   { label: '收入', value: 'income' },
   { label: '支出', value: 'expense' },
-];
-
-const periodOptions = [
-  { label: '本周', value: 'week' },
-  { label: '本月', value: 'month' },
-  { label: '本季度', value: 'quarter' },
-  { label: '本年', value: 'year' },
-];
-
-const basicExpenseOptions = [
-  { label: '是', value: 'true' },
-  { label: '否', value: 'false' },
 ];
 
 // 状态变量
@@ -290,8 +253,8 @@ const pagination = ref({
 const filters = ref({
   type: '',
   categoryId: '',
-  period: 'month', // 默认本月
-  isBasicExpense: '',
+  startDate: '',
+  endDate: '',
 });
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -304,7 +267,6 @@ const formState = ref({
   amount: 0,
   description: '',
   transactionDate: dayjs().format('YYYY-MM-DD'),
-  isBasicExpense: false,
 });
 const isEditing = ref(false);
 const currentTransaction = ref(null);
@@ -362,8 +324,8 @@ const resetFilters = () => {
   filters.value = {
     type: '',
     categoryId: '',
-    period: 'month',
-    isBasicExpense: '',
+    startDate: '',
+    endDate: '',
   };
   pagination.value.page = 1;
   loadTransactions();
@@ -376,7 +338,6 @@ const loadTransactions = async () => {
     
     // 构建查询参数
     const params = {
-      userId: getUserId(),
       page: pagination.value.page,
       limit: pagination.value.limit,
     };
@@ -389,18 +350,25 @@ const loadTransactions = async () => {
       params.categoryId = filters.value.categoryId;
     }
     
-    if (filters.value.period) {
-      params.period = filters.value.period;
+    // 更新为日期范围查询
+    if (filters.value.startDate) {
+      params.startDate = filters.value.startDate;
     }
     
-    if (filters.value.isBasicExpense !== '') {
-      params.isBasicExpense = filters.value.isBasicExpense;
+    if (filters.value.endDate) {
+      params.endDate = filters.value.endDate;
     }
+    
+    console.log('查询参数:', params);
     
     const response = await api.get('/api/transactions', params);
     
     if (response.success) {
-      transactions.value = response.data.transactions?.map(i => ({ ...i, categoryId: i.categoryId._id, categoryName: i.categoryId.name }));;
+      transactions.value = response.data.transactions?.map(t => ({
+        ...t,
+        categoryId: t.categoryId._id || t.categoryId,
+        categoryName: t.categoryId.name
+      }));
       pagination.value = response.data.pagination;
     }
   } catch (error) {
@@ -413,15 +381,18 @@ const loadTransactions = async () => {
 // 加载类别
 const loadCategories = async () => {
   try {
-    const response = await api.get('/api/categories', {
-      leafOnly: true
-    });
+    const response = await api.get('/api/categories');
     
     if (response.success) {
+      console.log('获取到的类别数据:', response.data);
+      
       categoryOptions.value = response.data.map(category => ({
         label: category.name,
         value: category._id,
+        type: category.type // 保留类型信息
       }));
+      
+      console.log('处理后的类别选项:', categoryOptions.value);
     }
   } catch (error) {
     console.error('加载类别错误:', error);
@@ -443,7 +414,6 @@ const resetForm = () => {
     amount: 0,
     description: '',
     transactionDate: dayjs().format('YYYY-MM-DD'),
-    isBasicExpense: false,
   };
   currentTransaction.value = null;
 };
@@ -459,10 +429,16 @@ const editTransaction = (transaction) => {
     amount: transaction.amount,
     description: transaction.description,
     transactionDate: formatDate(transaction.transactionDate),
-    isBasicExpense: transaction.isBasicExpense,
   };
   
-  showAddModal.value = true;
+  // 确保在打开编辑对话框前已加载好对应类型的类别
+  if (categoryOptions.value.length === 0) {
+    loadCategories().then(() => {
+      showAddModal.value = true;
+    });
+  } else {
+    showAddModal.value = true;
+  }
 };
 
 // 保存交易
@@ -472,7 +448,6 @@ const saveTransaction = async () => {
     
     const data = {
       ...formState.value,
-      userId: getUserId(),
     };
     
     let response;

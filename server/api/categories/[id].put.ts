@@ -13,6 +13,15 @@ export default defineEventHandler(async (event) => {
     // 连接数据库
     await connectToDatabase();
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id;
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取类别ID
     const id = event.context.params?.id;
     
@@ -20,6 +29,23 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 400,
         statusMessage: '类别ID是必需的',
+      });
+    }
+    
+    // 先验证类别存在且属于当前用户
+    const existingCategory = await Category.findById(id);
+    if (!existingCategory) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: '类别不存在',
+      });
+    }
+    
+    // 验证类别所有权
+    if (existingCategory.userId.toString() !== userId.toString()) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: '无权操作其他用户的类别',
       });
     }
     
@@ -43,13 +69,6 @@ export default defineEventHandler(async (event) => {
       { name },
       { new: true, runValidators: true }
     );
-    
-    if (!updatedCategory) {
-      throw createError({
-        statusCode: 404,
-        statusMessage: '类别不存在',
-      });
-    }
     
     return {
       success: true,

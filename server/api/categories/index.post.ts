@@ -17,6 +17,15 @@ export default defineEventHandler(async (event) => {
     // 连接数据库
     await connectToDatabase();
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id;
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取并验证请求体
     const body = await readBody(event);
     const validationResult = categorySchema.safeParse(body);
@@ -54,6 +63,14 @@ export default defineEventHandler(async (event) => {
         });
       }
       
+      // 检查父类别是否属于当前用户
+      if (parentCategory.userId.toString() !== userId.toString()) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: '无权操作其他用户的类别',
+        });
+      }
+      
       level = parentCategory.level + 1;
     }
     
@@ -64,6 +81,7 @@ export default defineEventHandler(async (event) => {
       level,
       path, // 将在保存前自动更新
       type,
+      userId, // 设置用户ID
     });
     
     // 保存到数据库

@@ -8,21 +8,22 @@ export default defineEventHandler(async (event) => {
     // 连接数据库
     await connectToDatabase();
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id;
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取查询参数
     const query = getQuery(event);
     
-    const userId = query.userId as string;
     const isActive = query.isActive === 'true';
     const categoryId = query.categoryId as string;
     const year = query.year ? parseInt(query.year as string) : null;
     const month = query.month ? parseInt(query.month as string) : null;
-    
-    if (!userId) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: '用户ID是必需的',
-      });
-    }
     
     // 构建查询条件
     const filter: any = { userId };

@@ -11,7 +11,6 @@ const updateTransactionSchema = z.object({
   description: z.string().optional(),
   transactionDate: z.string().or(z.date()).optional(),
   type: z.enum(['income', 'expense']).optional(),
-  isBasicExpense: z.boolean().optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -29,6 +28,15 @@ export default defineEventHandler(async (event) => {
       });
     }
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id;
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取并验证请求体
     const body = await readBody(event);
     const validationResult = updateTransactionSchema.safeParse(body);
@@ -41,11 +49,29 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    const updates = validationResult.data;
+    const updateData = validationResult.data;
     
-    // 如果更新类别，验证新类别是否存在
-    if (updates.categoryId) {
-      const category = await Category.findById(updates.categoryId);
+    // 查找交易记录
+    const transaction = await Transaction.findById(id);
+    
+    if (!transaction) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: '交易记录不存在',
+      });
+    }
+    
+    // 验证是否是当前用户的交易
+    if (transaction.userId.toString() !== userId.toString()) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: '无权修改其他用户的交易记录',
+      });
+    }
+    
+    // 如果更新类别，验证类别是否存在
+    if (updateData.categoryId) {
+      const category = await Category.findById(updateData.categoryId);
       
       if (!category) {
         throw createError({
@@ -53,33 +79,43 @@ export default defineEventHandler(async (event) => {
           statusMessage: '类别不存在',
         });
       }
+      
+      // 验证类别所有权
+      if (category.userId.toString() !== userId.toString()) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: '无权使用其他用户的类别',
+        });
+      }
+      
+      // 验证类型是否与类别匹配
+      const type = updateData.type || transaction.type;
+      if (category.type !== type) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: `类别 ${category.name} 是 ${category.type} 类型，不能用于 ${type} 交易`,
+        });
+      }
     }
     
     // 如果有日期，转换为Date对象
-    if (updates.transactionDate) {
-      updates.transactionDate = new Date(updates.transactionDate);
+    if (updateData.transactionDate) {
+      updateData.transactionDate = new Date(updateData.transactionDate);
     }
     
-    // 查找并更新交易
+    // 更新交易记录
     const updatedTransaction = await Transaction.findByIdAndUpdate(
       id,
-      { $set: updates },
+      { $set: updateData },
       { new: true, runValidators: true }
     );
-    
-    if (!updatedTransaction) {
-      throw createError({
-        statusCode: 404,
-        statusMessage: '交易不存在',
-      });
-    }
     
     return {
       success: true,
       data: updatedTransaction,
     };
   } catch (error: any) {
-    console.error('更新交易错误:', error);
+    console.error('更新交易记录错误:', error);
     
     if (error.statusCode) {
       throw error;
@@ -87,7 +123,7 @@ export default defineEventHandler(async (event) => {
     
     throw createError({
       statusCode: 500,
-      statusMessage: '更新交易时发生错误',
+      statusMessage: '更新交易记录时发生错误',
     });
   }
 }); 

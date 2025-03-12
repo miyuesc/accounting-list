@@ -12,7 +12,6 @@ const transactionSchema = z.object({
   description: z.string().optional(),
   transactionDate: z.string().or(z.date()),
   type: z.enum(['income', 'expense']),
-  isBasicExpense: z.boolean().optional().default(false),
 });
 
 export default defineEventHandler(async (event) => {
@@ -36,13 +35,12 @@ export default defineEventHandler(async (event) => {
       userId,
       categoryId,
       amount,
-      description,
+      description = '',
       transactionDate,
       type,
-      isBasicExpense,
     } = validationResult.data;
     
-    // 验证类别是否存在
+    // 验证类别是否存在且与用户匹配
     const category = await Category.findById(categoryId);
     
     if (!category) {
@@ -52,25 +50,33 @@ export default defineEventHandler(async (event) => {
       });
     }
     
+    // 验证类型是否与类别匹配
+    if (category.type !== type) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `类别 ${category.name} 是 ${category.type} 类型，不能用于 ${type} 交易`,
+      });
+    }
+    
     // 创建新交易
-    const newTransaction = new Transaction({
+    const transaction = new Transaction({
       userId,
       categoryId,
       amount,
       description,
       transactionDate: new Date(transactionDate),
       type,
-      isBasicExpense,
     });
     
-    await newTransaction.save();
+    // 保存到数据库
+    await transaction.save();
     
     return {
       success: true,
-      data: newTransaction,
+      data: transaction,
     };
   } catch (error: any) {
-    console.error('创建交易错误:', error);
+    console.error('创建交易记录错误:', error);
     
     if (error.statusCode) {
       throw error;
@@ -78,7 +84,7 @@ export default defineEventHandler(async (event) => {
     
     throw createError({
       statusCode: 500,
-      statusMessage: '创建交易时发生错误',
+      statusMessage: '创建交易记录时发生错误',
     });
   }
 }); 

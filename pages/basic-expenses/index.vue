@@ -364,7 +364,8 @@ const formatCurrency = (amount) => {
 const getCategoryName = (categoryId) => {
   if (!categoryId) return '未指定类别';
   
-  const category = categories.value.find(c => c._id === categoryId);
+  const category = categories.value.find(c => c._id === (categoryId?._id || categoryId));
+  console.log('category', category);
   if (category) {
     return category.name;
   } else {
@@ -379,9 +380,7 @@ const loadBasicExpenses = async () => {
     isLoading.value = true;
     
     // 构建查询参数
-    const params = {
-      userId: getUserId(),
-    };
+    const params = {};
     
     // 添加年月筛选
     if (filters.value.year) {
@@ -402,12 +401,10 @@ const loadBasicExpenses = async () => {
       params.isActive = filters.value.isActive;
     }
     
-    console.log('Query params:', params);
-    
     const response = await api.get('/api/basic-expenses', params);
     
     if (response.success) {
-      basicExpenses.value = response.data?.map(i => ({ ...i, categoryId: i.categoryId._id, categoryName: i.categoryId.name }));
+      basicExpenses.value = response.data;
     }
   } catch (error) {
     console.error('加载基础消费错误:', error);
@@ -461,19 +458,20 @@ const resetForm = () => {
 const editBasicExpense = (basicExpense) => {
   isEditing.value = true;
   currentBasicExpense.value = basicExpense;
+  const categoryId = basicExpense.categoryId?._id || basicExpense.categoryId;
   
   console.log('Editing basic expense:', basicExpense);
-  console.log('Category ID:', basicExpense.categoryId);
+  console.log('Category ID:', categoryId);
   console.log('Available categories:', categories.value);
   
   // 检查类别是否存在
-  const categoryExists = categories.value.some(c => c._id === basicExpense.categoryId);
+  const categoryExists = categories.value.some(c => c._id === categoryId);
   if (!categoryExists) {
-    console.warn(`类别ID ${basicExpense.categoryId} 不在可用类别列表中`);
+    console.warn(`类别ID ${categoryId} 不在可用类别列表中`);
   }
   
   formState.value = {
-    categoryId: basicExpense.categoryId,
+    categoryId,
     amount: basicExpense.amount,
     description: basicExpense.description,
     isActive: basicExpense.isActive,

@@ -2,31 +2,40 @@ import { defineEventHandler, getQuery, createError } from 'h3';
 import { Transaction } from '~/server/models/transaction';
 import { Category } from '~/server/models/category';
 import { connectToDatabase } from '~/server/utils/db';
-import dayjs from 'dayjs';
 
 export default defineEventHandler(async (event) => {
   try {
     // 连接数据库
     await connectToDatabase();
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id;
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取查询参数
     const query = getQuery(event);
     
-    const userId = query.userId as string;
-    const categoryId = query.categoryId as string;
-    const type = query.type as 'income' | 'expense';
-    const startDate = query.startDate as string;
-    const endDate = query.endDate as string;
-    const isBasicExpense = query.isBasicExpense === 'true';
-    const period = query.period as 'week' | 'month' | 'quarter' | 'year';
-    const page = parseInt(query.page as string || '1');
-    const limit = parseInt(query.limit as string || '20');
+    // 改进参数解析，确保空字符串被视为未提供
+    const categoryId = query.categoryId ? String(query.categoryId) : undefined;
+    const type = query.type ? String(query.type) as 'income' | 'expense' : undefined;
+    const startDate = query.startDate ? String(query.startDate) : undefined;
+    const endDate = query.endDate ? String(query.endDate) : undefined;
+    const page = parseInt(String(query.page || '1'));
+    const limit = parseInt(String(query.limit || '20'));
     
     // 构建查询条件
-    const filter: any = {};
+    const filter: any = {
+      // 始终使用认证用户的ID
+      userId
+    };
     
-    if (userId) {
-      filter.userId = userId;
+    if (type) {
+      filter.type = type;
     }
     
     if (categoryId) {
@@ -49,11 +58,7 @@ export default defineEventHandler(async (event) => {
       }
     }
     
-    if (type) {
-      filter.type = type;
-    }
-    
-    // 如果指定了时间段
+    // 如果指定了时间段，创建日期范围过滤条件
     if (startDate || endDate) {
       filter.transactionDate = {};
       
@@ -62,38 +67,11 @@ export default defineEventHandler(async (event) => {
       }
       
       if (endDate) {
-        filter.transactionDate.$lte = new Date(endDate);
+        // 将结束日期设置为当天的23:59:59，以包含当天的所有交易
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        filter.transactionDate.$lte = endDateTime;
       }
-    } else if (period) {
-      // 如果指定了预定义的时间段
-      const now = dayjs();
-      let start;
-      
-      switch (period) {
-        case 'week':
-          start = now.startOf('week');
-          break;
-        case 'month':
-          start = now.startOf('month');
-          break;
-        case 'quarter':
-          start = now.startOf('quarter');
-          break;
-        case 'year':
-          start = now.startOf('year');
-          break;
-      }
-      
-      if (start) {
-        filter.transactionDate = {
-          $gte: start.toDate(),
-          $lte: now.toDate(),
-        };
-      }
-    }
-    
-    if (query.isBasicExpense !== undefined) {
-      filter.isBasicExpense = isBasicExpense;
     }
     
     // 计算分页
@@ -109,6 +87,9 @@ export default defineEventHandler(async (event) => {
       .limit(limit)
       .populate('categoryId');
     
+    // 打印过滤条件，便于调试
+    console.log('查询过滤条件:', JSON.stringify(filter));
+    
     return {
       success: true,
       data: {
@@ -117,7 +98,7 @@ export default defineEventHandler(async (event) => {
           total,
           page,
           limit,
-          pages: Math.ceil(total / limit),
+          pages: Math.ceil(total / limit) || 1,
         },
       },
     };

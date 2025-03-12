@@ -27,44 +27,11 @@ export interface JwtPayload {
   username: string;
 }
 
-export const verifyAuth = defineEventHandler(async (event) => {
-  // 排除不需要验证的路由
-  const { url } = event.node.req;
-  if (url === '/api/auth/login' || url === '/api/auth/register') {
-    return;
-  }
-
-  // 获取JWT令牌
-  const authHeader = getHeader(event, 'Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Unauthorized: Missing or invalid authentication token',
-    });
-  }
-
-  const token = authHeader.split(' ')[1];
-  if (!token) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Unauthorized: No token provided',
-    });
-  }
-
-  try {
-    // 验证令牌
-    const config = useRuntimeConfig();
-    const decoded = jwt.verify(token, config.jwtSecret) as JwtPayload;
-    
-    // 将用户信息添加到事件上下文，以便路由处理程序可以访问
-    event.context.auth = decoded;
-  } catch (error) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Unauthorized: Invalid token',
-    });
-  }
-});
+// 从token解析用户信息
+const decodeToken = (token: string): JwtPayload => {
+  const config = useRuntimeConfig();
+  return jwt.verify(token, config.jwtSecret) as JwtPayload;
+};
 
 // 认证中间件
 export default defineEventHandler(async (event) => {
@@ -84,18 +51,37 @@ export default defineEventHandler(async (event) => {
   await connectToDatabase();
   
   try {
-    // 从请求头中获取用户ID
-    const userId = getHeader(event, 'x-user-id');
+    // 从请求头中获取Authorization
+    const authHeader = getHeader(event, 'Authorization');
     
-    if (!userId) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw createError({
         statusCode: 401,
         statusMessage: '未授权，请先登录',
       });
     }
     
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
+    // 验证并解析token
+    let decoded: JwtPayload;
+    try {
+      decoded = decodeToken(token);
+    } catch (error) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '无效的令牌，请重新登录',
+      });
+    }
+    
     // 验证用户是否存在
-    const user = await User.findById(userId);
+    const user = await User.findById(decoded.userId);
     if (!user) {
       throw createError({
         statusCode: 401,

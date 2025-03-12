@@ -8,6 +8,15 @@ export default defineEventHandler(async (event) => {
     // 连接数据库
     await connectToDatabase();
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id;
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取类别ID
     const id = event.context.params?.id;
     
@@ -25,6 +34,14 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 404,
         statusMessage: '类别不存在',
+      });
+    }
+    
+    // 检查类别所有权
+    if (category.userId.toString() !== userId.toString()) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: '无权删除其他用户的类别',
       });
     }
     

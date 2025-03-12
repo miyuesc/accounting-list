@@ -4,18 +4,15 @@
 
 interface AuthHeaders {
   Authorization: string;
-  'x-user-id': string | null;
 }
 
 // 获取认证头
 export const getAuthHeader = (): Record<string, string> => {
   const token = process.client ? localStorage.getItem('token') : null;
-  const userId = getUserId();
   
-  if (token && userId) {
+  if (token) {
     return {
       Authorization: `Bearer ${token}`,
-      'x-user-id': userId,
     };
   }
   

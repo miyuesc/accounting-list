@@ -59,6 +59,15 @@ export default defineEventHandler(async (event) => {
     // 连接数据库
     await connectToDatabase();
     
+    // 从认证中间件获取用户ID
+    const userId = event.context.user?.id.toString();
+    if (!userId) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: '未授权，请先登录',
+      });
+    }
+    
     // 获取查询参数
     const query = getQuery(event);
     const level = query.level ? parseInt(query.level as string) : undefined;
@@ -66,11 +75,14 @@ export default defineEventHandler(async (event) => {
     const type = query.type as string;  // 收入或支出类型
     const treeView = query.treeView === 'true';  // 是否返回树形结构
     const leafOnly = query.leafOnly === 'true';
-    const userId = query.userId as string;
     
     // 构建查询条件
-    let filter: any = {};
+    let filter: any = {
+      // 始终使用认证用户的ID
+      userId
+    };
     
+    // 只有在有 userId 的情况下，其他过滤条件才有意义
     if (level !== undefined) {
       filter.level = level;
     }
@@ -84,10 +96,6 @@ export default defineEventHandler(async (event) => {
     } else if (parentId === '') {
       // 如果parentId为空字符串，查询顶级类别
       filter.parentId = null;
-    }
-    
-    if (userId) {
-      filter.userId = userId;
     }
     
     // 查询类别列表

@@ -7,6 +7,7 @@ export interface ICategory extends mongoose.Document {
   level: number;        // 层级，从1开始（1=一级类型，2=二级类型，以此类推）
   path: string;         // 类型路径，格式为"id1,id2,..."，用于快速查询层级关系
   type: string;         // 类型：income(收入) 或 expense(支出)
+  userId: mongoose.Schema.Types.ObjectId; // 用户ID，关联到用户
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +40,11 @@ const categorySchema = new mongoose.Schema<ICategory>(
       enum: ['income', 'expense'],
       required: [true, '类型是必需的'],
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, '用户ID是必需的'],
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -68,6 +74,11 @@ categorySchema.pre('save', async function(next) {
         // 确保子类别与父类别的类型一致
         this.type = parentCategory.type;
         
+        // 确保子类别属于同一用户
+        if (this.userId.toString() !== parentCategory.userId.toString()) {
+          throw new Error('子类别必须与父类别属于同一用户');
+        }
+        
         // 更新路径和层级
         this.path = parentCategory.path ? `${parentCategory.path},${this._id}` : `${this._id}`;
         this.level = parentCategory.level + 1;
@@ -93,6 +104,8 @@ categorySchema.index({ parentId: 1 });
 categorySchema.index({ level: 1 });
 categorySchema.index({ path: 1 });
 categorySchema.index({ type: 1 });
+categorySchema.index({ userId: 1 }); // 添加userId索引
+categorySchema.index({ userId: 1, type: 1 }); // 组合索引，加速按用户和类型查询
 
 // 创建并导出账单类型字典模型
 export const Category = mongoose.model<ICategory>('Category', categorySchema);

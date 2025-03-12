@@ -16,7 +16,6 @@ export interface ITransaction extends mongoose.Document {
   description: string;
   transactionDate: Date;
   type: 'income' | 'expense';
-  isBasicExpense: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,10 +51,6 @@ const transactionSchema = new mongoose.Schema<ITransaction>({
     enum: ['income', 'expense'],
     required: true,
   },
-  isBasicExpense: {
-    type: Boolean,
-    default: false,
-  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -71,7 +66,6 @@ transactionSchema.index({ userId: 1 });
 transactionSchema.index({ categoryId: 1 });
 transactionSchema.index({ transactionDate: 1 });
 transactionSchema.index({ type: 1 });
-transactionSchema.index({ isBasicExpense: 1 });
 
 // 创建并导出账单记录模型
 export const Transaction = mongoose.model<ITransaction>('Transaction', transactionSchema);
