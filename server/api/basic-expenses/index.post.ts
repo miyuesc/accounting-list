@@ -11,6 +11,8 @@ const basicExpenseSchema = z.object({
   amount: z.number().positive('金额必须为正数'),
   description: z.string().optional(),
   isActive: z.boolean().optional().default(true),
+  startDate: z.string().min(1, '开始日期是必需的'),
+  endDate: z.string().min(1, '结束日期是必需的'),
 });
 
 export default defineEventHandler(async (event) => {
@@ -36,6 +38,8 @@ export default defineEventHandler(async (event) => {
       amount,
       description,
       isActive,
+      startDate,
+      endDate,
     } = validationResult.data;
     
     // 验证类别是否存在
@@ -48,6 +52,25 @@ export default defineEventHandler(async (event) => {
       });
     }
     
+    // 创建基础消费校验
+    if (!categoryId || amount === undefined || !startDate || !endDate) {
+      return {
+        success: false,
+        message: '缺少必要参数'
+      };
+    }
+
+    // 验证日期格式
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime()) || startDateObj > endDateObj) {
+      return {
+        success: false,
+        message: '日期格式无效或起始日期大于结束日期'
+      };
+    }
+    
     // 创建新的基本消费配置
     const newBasicExpense = new BasicExpense({
       userId,
@@ -55,6 +78,10 @@ export default defineEventHandler(async (event) => {
       amount,
       description,
       isActive,
+      startDate: startDateObj,
+      endDate: endDateObj,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
     
     await newBasicExpense.save();

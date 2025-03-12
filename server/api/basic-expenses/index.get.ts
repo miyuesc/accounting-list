@@ -1,5 +1,6 @@
 import { defineEventHandler, getQuery, createError } from 'h3';
 import { BasicExpense } from '~/server/models/basicExpense';
+import { Category } from '~/server/models/category';
 import { connectToDatabase } from '~/server/utils/db';
 
 export default defineEventHandler(async (event) => {
@@ -12,6 +13,9 @@ export default defineEventHandler(async (event) => {
     
     const userId = query.userId as string;
     const isActive = query.isActive === 'true';
+    const categoryId = query.categoryId as string;
+    const year = query.year ? parseInt(query.year as string) : null;
+    const month = query.month ? parseInt(query.month as string) : null;
     
     if (!userId) {
       throw createError({
@@ -23,38 +27,64 @@ export default defineEventHandler(async (event) => {
     // 构建查询条件
     const filter: any = { userId };
     
+    // 处理状态筛选
     if (query.isActive !== undefined) {
       filter.isActive = isActive;
     }
     
-    // 查询基本消费 - 使用 lean() 返回普通 JavaScript 对象
-    const basicExpenses = await BasicExpense.find(filter)
-      .populate({
-        path: 'categoryId',
-        select: 'name type id' // 只选择需要的字段
-      })
-      .sort({ amount: -1 })
-      .lean();
-    
-    // 重新格式化数据，保留原始 categoryId
-    const formattedExpenses = basicExpenses.map(expense => {
-      // 检查 categoryId 是否为对象
-      if (expense.categoryId && typeof expense.categoryId === 'object') {
-        return {
-          ...expense,
-          // 保留原始 categoryId
-          categoryId: expense.categoryId._id,
-          // 添加类别名称为单独的字段
-          categoryName: expense.categoryId.name,
-          categoryType: expense.categoryId.type
-        };
+    // 处理年月筛选
+    if (year || month) {
+      // 构建日期查询条件
+      const dateFilter: any = {};
+      
+      if (year && month) {
+        // 特定年月 - 查找在该月份内生效的基础消费
+        const startOfMonth = new Date(year, month - 1, 1);
+        const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+        
+        // 基础消费的有效期必须与查询月份有重叠
+        dateFilter.$or = [
+          {
+            // 开始日期在选中月份之前（或当月），结束日期在选中月份之后（或当月）
+            startDate: { $lte: endOfMonth },
+            endDate: { $gte: startOfMonth }
+          }
+        ];
+      } else if (year) {
+        // 只筛选年份 - 查找在该年份内任何时间生效的基础消费
+        const startOfYear = new Date(year, 0, 1);
+        const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
+        
+        dateFilter.$or = [
+          {
+            // 开始日期在选中年份之前（或当年），结束日期在选中年份之后（或当年）
+            startDate: { $lte: endOfYear },
+            endDate: { $gte: startOfYear }
+          }
+        ];
       }
-      return expense;
-    });
+      
+      // 合并日期筛选条件到主查询
+      Object.assign(filter, dateFilter);
+    }
+    
+    // 处理类别筛选（包括子类别）
+    if (categoryId) {
+      // 首先获取该类别及其所有子类别
+      const allCategoryIds = await getAllChildCategories(categoryId);
+      filter.categoryId = { $in: allCategoryIds };
+    }
+    
+    console.log('Query filter:', filter);
+    
+    // 查询基本消费
+    const basicExpenses = await BasicExpense.find(filter)
+      .populate('categoryId')
+      .sort({ createdAt: -1 });
     
     return {
       success: true,
-      data: formattedExpenses,
+      data: basicExpenses,
     };
   } catch (error: any) {
     console.error('获取基本消费错误:', error);
@@ -68,4 +98,26 @@ export default defineEventHandler(async (event) => {
       statusMessage: '获取基本消费时发生错误',
     });
   }
-}); 
+});
+
+// 辅助函数：获取所有子类别 ID
+async function getAllChildCategories(categoryId: string): Promise<string[]> {
+  // 包含当前类别 ID
+  const allIds = [categoryId];
+  
+  // 递归查找所有子类别
+  async function findChildren(parentId: string) {
+    const children = await Category.find({ parentId }).lean();
+    
+    for (const child of children) {
+      allIds.push(child._id.toString());
+      // 递归查找下一级子类别
+      await findChildren(child._id.toString());
+    }
+  }
+  
+  // 开始递归查找
+  await findChildren(categoryId);
+  
+  return allIds;
+} 

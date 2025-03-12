@@ -14,6 +14,66 @@
       </template>
     </UAlert>
     
+    <!-- 添加筛选区域 -->
+    <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- 年份月份筛选 -->
+        <UFormGroup label="生效年月">
+          <div class="grid grid-cols-2 gap-2">
+            <USelectMenu
+              v-model="filters.year"
+              :options="yearOptions"
+              placeholder="年份"
+              value-attribute="value"
+              option-attribute="label"
+            />
+            <USelectMenu
+              v-model="filters.month"
+              :options="monthOptions"
+              placeholder="月份"
+              value-attribute="value"
+              option-attribute="label"
+            />
+          </div>
+        </UFormGroup>
+        
+        <!-- 支出类型筛选 -->
+        <UFormGroup label="支出类型">
+          <USelectMenu
+            v-model="filters.categoryId"
+            :options="categoryOptions"
+            placeholder="选择类型"
+            value-attribute="value"
+            option-attribute="label"
+          />
+        </UFormGroup>
+        
+        <!-- 状态筛选 -->
+        <UFormGroup label="状态">
+          <USelectMenu
+            v-model="filters.isActive"
+            :options="[
+              { label: '全部', value: '' },
+              { label: '启用', value: 'true' },
+              { label: '禁用', value: 'false' }
+            ]"
+            placeholder="选择状态"
+            value-attribute="value"
+            option-attribute="label"
+          />
+        </UFormGroup>
+      </div>
+      
+      <div class="flex justify-end mt-4">
+        <UButton color="gray" variant="soft" class="mr-2" @click="resetFilters">
+          重置
+        </UButton>
+        <UButton color="primary" @click="loadBasicExpenses">
+          查询
+        </UButton>
+      </div>
+    </div>
+    
     <!-- 基础消费列表 -->
     <div class="bg-white rounded-lg shadow-sm overflow-hidden">
       <UTable 
@@ -34,6 +94,16 @@
           <UBadge :color="row.isActive ? 'green' : 'gray'">
             {{ row.isActive ? '启用' : '禁用' }}
           </UBadge>
+        </template>
+        
+        <template #effectivePeriod-data="{ row }">
+          <div class="text-sm">
+            {{ formatDate(row.startDate) }} 至 {{ formatDate(row.endDate) }}
+          </div>
+        </template>
+        
+        <template #description-data="{ row }">
+          {{ row.description }}
         </template>
         
         <template #actions-data="{ row }">
@@ -119,6 +189,22 @@
           <UFormGroup>
             <UCheckbox v-model="formState.isActive" label="启用" />
           </UFormGroup>
+          
+          <UFormGroup label="生效开始时间" name="startDate">
+            <UInput
+              v-model="formState.startDate"
+              type="date"
+              placeholder="请选择开始日期"
+            />
+          </UFormGroup>
+          
+          <UFormGroup label="生效结束时间" name="endDate">
+            <UInput
+              v-model="formState.endDate"
+              type="date"
+              placeholder="请选择结束日期"
+            />
+          </UFormGroup>
         </UForm>
         
         <template #footer>
@@ -170,6 +256,7 @@
 
 <script setup>
 import { api, getUserId } from '~/utils/api';
+import dayjs from 'dayjs';
 
 // 表格列定义
 const columns = [
@@ -180,6 +267,10 @@ const columns = [
   {
     key: 'amount',
     label: '金额',
+  },
+  {
+    key: 'effectivePeriod',
+    label: '生效期间',
   },
   {
     key: 'description',
@@ -208,9 +299,17 @@ const formState = ref({
   amount: 0,
   description: '',
   isActive: true,
+  startDate: dayjs().format('YYYY-MM-DD'),
+  endDate: dayjs().add(1, 'year').format('YYYY-MM-DD'),
 });
 const isEditing = ref(false);
 const currentBasicExpense = ref(null);
+const filters = ref({
+  year: '',
+  month: '',
+  categoryId: '',
+  isActive: '',
+});
 
 // 计算属性
 const categoryOptions = computed(() => {
@@ -225,6 +324,32 @@ const totalMonthlyExpense = computed(() => {
     .filter(item => item.isActive)
     .reduce((sum, item) => sum + item.amount, 0);
 });
+
+const yearOptions = computed(() => {
+  const currentYear = new Date().getFullYear();
+  return [
+    { label: '全部', value: '' },
+    { label: `${currentYear}年`, value: currentYear },
+    { label: `${currentYear + 1}年`, value: currentYear + 1 },
+    { label: `${currentYear + 2}年`, value: currentYear + 2 },
+  ];
+});
+
+const monthOptions = [
+  { label: '全部', value: '' },
+  { label: '1月', value: 1 },
+  { label: '2月', value: 2 },
+  { label: '3月', value: 3 },
+  { label: '4月', value: 4 },
+  { label: '5月', value: 5 },
+  { label: '6月', value: 6 },
+  { label: '7月', value: 7 },
+  { label: '8月', value: 8 },
+  { label: '9月', value: 9 },
+  { label: '10月', value: 10 },
+  { label: '11月', value: 11 },
+  { label: '12月', value: 12 },
+];
 
 // 格式化金额
 const formatCurrency = (amount) => {
@@ -253,12 +378,36 @@ const loadBasicExpenses = async () => {
   try {
     isLoading.value = true;
     
-    const response = await api.get('/api/basic-expenses', {
+    // 构建查询参数
+    const params = {
       userId: getUserId(),
-    });
+    };
+    
+    // 添加年月筛选
+    if (filters.value.year) {
+      params.year = filters.value.year;
+    }
+    
+    if (filters.value.month) {
+      params.month = filters.value.month;
+    }
+    
+    // 添加类别筛选
+    if (filters.value.categoryId) {
+      params.categoryId = filters.value.categoryId;
+    }
+    
+    // 添加状态筛选
+    if (filters.value.isActive !== '') {
+      params.isActive = filters.value.isActive;
+    }
+    
+    console.log('Query params:', params);
+    
+    const response = await api.get('/api/basic-expenses', params);
     
     if (response.success) {
-      basicExpenses.value = response.data;
+      basicExpenses.value = response.data?.map(i => ({ ...i, categoryId: i.categoryId._id, categoryName: i.categoryId.name }));
     }
   } catch (error) {
     console.error('加载基础消费错误:', error);
@@ -301,8 +450,11 @@ const resetForm = () => {
     amount: 0,
     description: '',
     isActive: true,
+    startDate: dayjs().format('YYYY-MM-DD'),
+    endDate: dayjs().add(1, 'year').format('YYYY-MM-DD'),
   };
   currentBasicExpense.value = null;
+  resetFilters();
 };
 
 // 编辑基础消费
@@ -325,6 +477,8 @@ const editBasicExpense = (basicExpense) => {
     amount: basicExpense.amount,
     description: basicExpense.description,
     isActive: basicExpense.isActive,
+    startDate: basicExpense.startDate,
+    endDate: basicExpense.endDate,
   };
   
   showAddModal.value = true;
@@ -333,15 +487,56 @@ const editBasicExpense = (basicExpense) => {
 // 切换状态
 const toggleStatus = async (basicExpense) => {
   try {
-    const response = await api.put(`/api/basic-expenses/${basicExpense._id}`, {
+    console.log('Toggling status for:', basicExpense._id);
+    
+    // 确保包含所有必要参数
+    const data = {
+      userId: getUserId(),
       isActive: !basicExpense.isActive,
-    });
+      
+      // 添加其他必要字段，避免后端验证失败
+      categoryId: typeof basicExpense.categoryId === 'object' 
+        ? basicExpense.categoryId._id 
+        : basicExpense.categoryId,
+      amount: basicExpense.amount,
+      description: basicExpense.description,
+      startDate: basicExpense.startDate,
+      endDate: basicExpense.endDate
+    };
+    
+    console.log('Sending data:', data);
+    
+    const response = await api.put(`/api/basic-expenses/${basicExpense._id}`, data);
     
     if (response.success) {
+      // 操作成功，刷新列表
       loadBasicExpenses();
+      
+      // 使用 NuxtUI toast 显示成功消息
+      useToast().add({
+        title: '操作成功',
+        description: '已' + (data.isActive ? '启用' : '停用') + '该基础消费',
+        color: 'green'
+      });
+    } else {
+      console.error('切换状态失败:', response);
+      
+      // 使用 NuxtUI toast 显示错误消息
+      useToast().add({
+        title: '操作失败',
+        description: response.message || '请稍后重试',
+        color: 'red'
+      });
     }
   } catch (error) {
     console.error('切换状态错误:', error);
+    
+    // 使用 NuxtUI toast 显示错误消息
+    useToast().add({
+      title: '网络错误',
+      description: '请检查网络连接并重试',
+      color: 'red'
+    });
   }
 };
 
@@ -403,6 +598,22 @@ const deleteBasicExpense = async () => {
   } finally {
     isDeleting.value = false;
   }
+};
+
+// 格式化日期
+const formatDate = (date) => {
+  return dayjs(date).format('YYYY-MM-DD');
+};
+
+// 重置筛选条件
+const resetFilters = () => {
+  filters.value = {
+    year: '',
+    month: '',
+    categoryId: '',
+    isActive: '',
+  };
+  loadBasicExpenses();
 };
 
 // 初始加载

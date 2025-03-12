@@ -10,34 +10,62 @@ export default defineEventHandler(async (event) => {
     try {
       const body = await readBody(event);
       
-      // 数据验证
-      if (!body.categoryId || body.amount === undefined) {
+      // 确保有userId参数
+      if (!body.userId) {
         return {
           success: false,
-          message: '缺少必要参数'
+          message: '缺少用户ID参数'
         };
       }
       
-      // 更新数据库记录
-      const result = await BasicExpense.findByIdAndUpdate(
-        id, 
-        { ...body, updatedAt: new Date() },
-        { new: true }
-      );
+      // 查找现有记录
+      const existingRecord = await BasicExpense.findById(id);
       
-      if (!result) {
+      if (!existingRecord) {
         return {
           success: false,
           message: '未找到基础消费记录'
         };
       }
       
+      // 准备更新数据 - 只使用提供的字段更新
+      const updateData: any = {
+        updatedAt: new Date()
+      };
+      
+      // 检查各个可更新字段是否存在
+      if (body.isActive !== undefined) updateData.isActive = body.isActive;
+      if (body.amount !== undefined) updateData.amount = body.amount;
+      if (body.description !== undefined) updateData.description = body.description;
+      if (body.categoryId !== undefined) updateData.categoryId = body.categoryId;
+      if (body.startDate !== undefined) updateData.startDate = new Date(body.startDate);
+      if (body.endDate !== undefined) updateData.endDate = new Date(body.endDate);
+      
+      // 添加详细日志
+      console.log('基础消费更新请求:', {
+        id,
+        body,
+        updateData
+      });
+      
+      // 更新记录
+      const result = await BasicExpense.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true }
+      );
+      
       return {
         success: true,
         data: result
       };
     } catch (error) {
-      console.error('更新基础消费错误:', error);
+      console.error('更新基础消费错误:', {
+        error,
+        requestBody: body,
+        id
+      });
+      
       return {
         success: false,
         message: error.message || '更新基础消费失败'

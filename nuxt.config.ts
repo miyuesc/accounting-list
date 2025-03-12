@@ -23,5 +23,10 @@ export default defineNuxtConfig({
   },
   alias: {
     '#tailwind-config': '~/tailwind.config.js'
+  },
+  ui: {
+    notifications: {
+      position: 'top-right'
+    }
   }
 })

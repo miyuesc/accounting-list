@@ -95,11 +95,15 @@ export default defineEventHandler(async (event) => {
     const transactions = await Transaction.find(dateFilter).lean();
     
     // 获取基础消费数据（如果需要）
-    let basicExpenses: any[] = [];
+    let basicExpenses = [];
     if (includeBasicExpense) {
+      // 查询与时间范围重叠的所有有效基础消费
       basicExpenses = await BasicExpense.find({
         userId,
         isActive: true,
+        // 确保基础消费的生效期与查询时间重叠
+        startDate: { $lte: endDate },  // 开始日期早于或等于查询结束日期
+        endDate: { $gte: startDate },  // 结束日期晚于或等于查询开始日期
       }).lean();
     }
     
@@ -205,7 +209,7 @@ export default defineEventHandler(async (event) => {
     };
     
     // 根据时间周期处理基础消费
-    const processBasicExpenses = (basicExpenses, period, year, month = null, quarter = null) => {
+    const processBasicExpenses = (basicExpenses, period, startDate, endDate) => {
       // 如果没有基础消费，返回空对象
       if (!basicExpenses || basicExpenses.length === 0) {
         return {
@@ -215,11 +219,12 @@ export default defineEventHandler(async (event) => {
         };
       }
 
-      // 计算总基础消费（按月）
-      const monthlyTotal = basicExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-      
       // 按类别分组
       const byCategory = {};
+      let totalAmount = 0;
+      let totalCount = 0;
+      
+      // 处理每个基础消费
       basicExpenses.forEach(expense => {
         const catId = typeof expense.categoryId === 'object'
           ? expense.categoryId._id?.toString() || expense.categoryId.toString()
@@ -227,6 +232,26 @@ export default defineEventHandler(async (event) => {
           
         if (!catId) return;
         
+        // 验证基础消费时间范围
+        const expenseStart = new Date(expense.startDate);
+        const expenseEnd = new Date(expense.endDate);
+        
+        // 计算此基础消费在查询时间段内有几个月生效
+        const overlappingStart = new Date(Math.max(expenseStart.getTime(), startDate.getTime()));
+        const overlappingEnd = new Date(Math.min(expenseEnd.getTime(), endDate.getTime()));
+        
+        // 计算重叠月数
+        const monthsDiff = (overlappingEnd.getFullYear() - overlappingStart.getFullYear()) * 12 +
+                           (overlappingEnd.getMonth() - overlappingStart.getMonth()) + 1;
+        
+        // 确保至少计算1个月（如果在同一个月内）
+        const effectiveMonths = Math.max(1, monthsDiff);
+        
+        // 本次基础消费在查询区间内的总金额
+        const amount = typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0;
+        const effectiveAmount = amount * effectiveMonths;
+        
+        // 更新类别统计
         if (!byCategory[catId]) {
           const category = categoryMap.get(catId);
           byCategory[catId] = {
@@ -236,42 +261,17 @@ export default defineEventHandler(async (event) => {
           };
         }
         
-        const amount = typeof expense.amount === 'number' ? expense.amount : parseFloat(expense.amount) || 0;
-        byCategory[catId].amount += amount;
-        byCategory[catId].count += 1;
-      });
-      
-      // 根据周期类型确定乘数
-      let multiplier = 1;
-      
-      switch (period) {
-        case 'year':
-          // 年度报表：所有12个月的基础消费
-          multiplier = 12;
-          break;
-          
-        case 'quarter':
-          // 季度报表：3个月的基础消费
-          multiplier = 3;
-          break;
-          
-        case 'month':
-          // 月度报表：1个月的基础消费
-          multiplier = 1;
-          break;
-      }
-      
-      // 计算周期内总基础消费
-      const periodTotal = monthlyTotal * multiplier;
-      
-      // 按相同比例调整每个类别的金额
-      Object.keys(byCategory).forEach(catId => {
-        byCategory[catId].amount *= multiplier;
+        byCategory[catId].amount += effectiveAmount;
+        byCategory[catId].count += effectiveMonths;
+        
+        // 更新总计
+        totalAmount += effectiveAmount;
+        totalCount += effectiveMonths;
       });
       
       return {
-        total: periodTotal,
-        count: basicExpenses.length * multiplier,
+        total: totalAmount,
+        count: totalCount,
         byCategory
       };
     };
@@ -279,8 +279,8 @@ export default defineEventHandler(async (event) => {
     // 处理收入和支出数据
     const incomeByCategory = processCategoryData(incomeTransactions);
     const expenseByCategory = processCategoryData(expenseTransactions);
-    const basicExpenseData = includeBasicExpense
-      ? processBasicExpenses(basicExpenses, period, year, month, quarter)
+    const basicExpenseData = includeBasicExpense 
+      ? processBasicExpenses(basicExpenses, period, startDate, endDate)
       : { total: 0, count: 0, byCategory: {} };
     
     // 计算总计（确保处理所有值为数字）

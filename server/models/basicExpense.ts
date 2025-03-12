@@ -9,6 +9,8 @@ export interface IBasicExpense extends mongoose.Document {
   amount: number;
   description: string;
   isActive: boolean;
+  startDate: Date;
+  endDate: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +40,14 @@ const basicExpenseSchema = new mongoose.Schema<IBasicExpense>({
   isActive: {
     type: Boolean,
     default: true,
+  },
+  startDate: {
+    type: Date,
+    required: true,
+  },
+  endDate: {
+    type: Date,
+    required: true,
   },
   createdAt: {
     type: Date,
