@@ -200,9 +200,6 @@
               />
             </span>
             <span>{{ row.name }}</span>
-            <span v-if="row.hasChildren" class="ml-2 text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">
-              {{ row.childrenCount }}
-            </span>
           </div>
         </template>
       </UTable>
@@ -242,12 +239,14 @@
           </UFormGroup>
           
           <UFormGroup v-if="!isEditing" label="父类别" class="form-group">
-            <USelect
+            <USelectMenu
               v-model="formState.parentId"
               :options="parentOptions"
               placeholder="无 (顶级类别)"
               clearable
               class="form-input"
+              value-attribute="value"
+              option-attribute="label"
             />
           </UFormGroup>
         </UForm>
@@ -688,7 +687,8 @@ const loadParentOptions = async () => {
     // 获取可作为父类别的选项
     // 如果选择了类型，只获取匹配类型的类别
     const params = {
-      level: { $lt: 3 } // 只有1级和2级类别可以作为父类别
+      treeView: true,
+      // level: { $lt: 3 } // 只有1级和2级类别可以作为父类别
     };
     
     if (formState.value.type) {

@@ -93,7 +93,13 @@
         
         <UForm :state="formState" class="space-y-4 py-2" @submit="saveBasicExpense">
           <UFormGroup label="类别" name="categoryId">
-            <USelect v-model="formState.categoryId" :options="categoryOptions" placeholder="选择类别" />
+            <USelectMenu
+              v-model="formState.categoryId"
+              :options="categoryOptions"
+              placeholder="选择类别"
+              value-attribute="value"
+              option-attribute="label"
+            />
           </UFormGroup>
           
           <UFormGroup label="金额" name="amount">
@@ -231,8 +237,15 @@ const formatCurrency = (amount) => {
 
 // 获取类别名称
 const getCategoryName = (categoryId) => {
+  if (!categoryId) return '未指定类别';
+  
   const category = categories.value.find(c => c._id === categoryId);
-  return category ? category.name : '未知类别';
+  if (category) {
+    return category.name;
+  } else {
+    console.warn(`未找到ID为 ${categoryId} 的类别`);
+    return '未知类别';
+  }
 };
 
 // 加载基础消费列表
@@ -257,10 +270,17 @@ const loadBasicExpenses = async () => {
 // 加载类别
 const loadCategories = async () => {
   try {
-    const response = await api.get('/api/categories');
+    console.log('Loading expense categories...');
+    
+    const response = await api.get('/api/categories', {
+      type: 'expense'  // 确保只获取支出类型的类别
+    });
     
     if (response.success) {
       categories.value = response.data;
+      console.log('Loaded categories:', categories.value);
+    } else {
+      console.error('加载类别失败:', response);
     }
   } catch (error) {
     console.error('加载类别错误:', error);
@@ -289,6 +309,16 @@ const resetForm = () => {
 const editBasicExpense = (basicExpense) => {
   isEditing.value = true;
   currentBasicExpense.value = basicExpense;
+  
+  console.log('Editing basic expense:', basicExpense);
+  console.log('Category ID:', basicExpense.categoryId);
+  console.log('Available categories:', categories.value);
+  
+  // 检查类别是否存在
+  const categoryExists = categories.value.some(c => c._id === basicExpense.categoryId);
+  if (!categoryExists) {
+    console.warn(`类别ID ${basicExpense.categoryId} 不在可用类别列表中`);
+  }
   
   formState.value = {
     categoryId: basicExpense.categoryId,

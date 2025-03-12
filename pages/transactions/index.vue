@@ -11,34 +11,42 @@
     <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <UFormGroup label="类型">
-          <USelect
+          <USelectMenu
             v-model="filters.type"
             :options="typeOptions"
             placeholder="全部"
+            value-attribute="value"
+            option-attribute="label"
           />
         </UFormGroup>
         
         <UFormGroup label="类别">
-          <USelect
+          <USelectMenu
             v-model="filters.categoryId"
             :options="categoryOptions"
             placeholder="全部"
+            value-attribute="value"
+            option-attribute="label"
           />
         </UFormGroup>
         
         <UFormGroup label="时间范围">
-          <USelect
+          <USelectMenu
             v-model="filters.period"
             :options="periodOptions"
             placeholder="自定义"
+            value-attribute="value"
+            option-attribute="label"
           />
         </UFormGroup>
         
         <UFormGroup label="基础消费">
-          <USelect
+          <USelectMenu
             v-model="filters.isBasicExpense"
             :options="basicExpenseOptions"
             placeholder="全部"
+            value-attribute="value"
+            option-attribute="label"
           />
         </UFormGroup>
       </div>
@@ -104,9 +112,10 @@
         </div>
         <UPagination
           v-model="pagination.page"
-          :page-count="pagination.pages"
+          show-first
+          show-last
+          :page-count="pagination.pages || 1"
           :total="pagination.total"
-          :ui="{ rounded: 'rounded-full' }"
           @update:model-value="loadTransactions"
         />
       </div>
@@ -135,7 +144,13 @@
           </UFormGroup>
           
           <UFormGroup label="类别" name="categoryId">
-            <USelect v-model="formState.categoryId" :options="categoryOptions" placeholder="选择类别" />
+            <USelectMenu
+              v-model="formState.categoryId"
+              :options="categoryOptions"
+              placeholder="选择类别"
+              value-attribute="value"
+              option-attribute="label"
+            />
           </UFormGroup>
           
           <UFormGroup label="金额" name="amount">
@@ -270,7 +285,7 @@ const pagination = ref({
   page: 1,
   limit: 10,
   total: 0,
-  pages: 0,
+  pages: 1,
 });
 const filters = ref({
   type: '',
@@ -364,7 +379,9 @@ const loadTransactions = async () => {
 // 加载类别
 const loadCategories = async () => {
   try {
-    const response = await api.get('/api/categories');
+    const response = await api.get('/api/categories', {
+      leafOnly: true
+    });
     
     if (response.success) {
       categoryOptions.value = response.data.map(category => ({

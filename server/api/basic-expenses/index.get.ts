@@ -27,14 +27,34 @@ export default defineEventHandler(async (event) => {
       filter.isActive = isActive;
     }
     
-    // 查询基本消费
+    // 查询基本消费 - 使用 lean() 返回普通 JavaScript 对象
     const basicExpenses = await BasicExpense.find(filter)
-      .populate('categoryId')
-      .sort({ amount: -1 });
+      .populate({
+        path: 'categoryId',
+        select: 'name type id' // 只选择需要的字段
+      })
+      .sort({ amount: -1 })
+      .lean();
+    
+    // 重新格式化数据，保留原始 categoryId
+    const formattedExpenses = basicExpenses.map(expense => {
+      // 检查 categoryId 是否为对象
+      if (expense.categoryId && typeof expense.categoryId === 'object') {
+        return {
+          ...expense,
+          // 保留原始 categoryId
+          categoryId: expense.categoryId._id,
+          // 添加类别名称为单独的字段
+          categoryName: expense.categoryId.name,
+          categoryType: expense.categoryId.type
+        };
+      }
+      return expense;
+    });
     
     return {
       success: true,
-      data: basicExpenses,
+      data: formattedExpenses,
     };
   } catch (error: any) {
     console.error('获取基本消费错误:', error);

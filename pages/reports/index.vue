@@ -8,26 +8,83 @@
     <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <UFormGroup label="时间周期">
-          <USelect
+          <USelectMenu
             v-model="filters.period"
             :options="periodOptions"
             placeholder="选择统计周期"
+            value-attribute="value"
+            option-attribute="label"
           />
         </UFormGroup>
         
-        <UFormGroup label="年份">
-          <USelect
-            v-model="filters.year"
-            :options="yearOptions"
-            placeholder="选择年份"
-          />
-        </UFormGroup>
+        <!-- 根据周期动态显示不同选择器 -->
+        <template v-if="filters.period === 'year'">
+          <!-- 年度选择 -->
+          <UFormGroup label="年份">
+            <USelectMenu
+              v-model="filters.year"
+              :options="yearOptions"
+              placeholder="选择年份"
+              value-attribute="value"
+              option-attribute="label"
+            />
+          </UFormGroup>
+        </template>
         
-        <UFormGroup label="类别层级">
-          <USelect
-            v-model="filters.categoryLevel"
-            :options="levelOptions"
-            placeholder="选择层级"
+        <template v-else-if="filters.period === 'quarter'">
+          <!-- 季度选择 -->
+          <UFormGroup label="年份">
+            <USelectMenu
+              v-model="filters.year"
+              :options="yearOptions"
+              placeholder="选择年份"
+              value-attribute="value"
+              option-attribute="label"
+            />
+          </UFormGroup>
+          
+          <UFormGroup label="季度">
+            <USelectMenu
+              v-model="filters.quarter"
+              :options="quarterOptions"
+              placeholder="选择季度"
+              value-attribute="value"
+              option-attribute="label"
+            />
+          </UFormGroup>
+        </template>
+        
+        <template v-else-if="filters.period === 'month'">
+          <!-- 月份选择 -->
+          <UFormGroup label="年份">
+            <USelectMenu
+              v-model="filters.year"
+              :options="yearOptions"
+              placeholder="选择年份"
+              value-attribute="value"
+              option-attribute="label"
+            />
+          </UFormGroup>
+          
+          <UFormGroup label="月份">
+            <USelectMenu
+              v-model="filters.month"
+              :options="monthOptions"
+              placeholder="选择月份"
+              value-attribute="value"
+              option-attribute="label"
+            />
+          </UFormGroup>
+        </template>
+        
+        <!-- 基础消费选项 -->
+        <UFormGroup label="包含基础消费">
+          <USelectMenu
+            v-model="filters.includeBasicExpense"
+            :options="basicExpenseOptions"
+            placeholder="是否包含基础消费"
+            value-attribute="value"
+            option-attribute="label"
           />
         </UFormGroup>
       </div>
@@ -73,6 +130,30 @@
               <div class="text-sm text-purple-600 mb-1">交易次数</div>
               <div class="text-2xl font-bold text-purple-700">
                 {{ summary.totalCount }}
+              </div>
+            </div>
+          </div>
+          
+          <!-- 基础消费统计 -->
+          <div class="mt-4 bg-orange-50 p-4 rounded-lg">
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="text-sm text-orange-600 mb-1">基础消费总额</div>
+                <div class="text-xl font-bold text-orange-700">
+                  {{ formatCurrency(summary.totalBasicExpense) }}
+                </div>
+              </div>
+              <div>
+                <div class="text-sm text-orange-600 mb-1">占总支出比例</div>
+                <div class="text-xl font-bold text-orange-700">
+                  {{ summary.basicExpensePercentage.toFixed(1) }}%
+                </div>
+              </div>
+              <div>
+                <div class="text-sm text-orange-600 mb-1">基础消费笔数</div>
+                <div class="text-xl font-bold text-orange-700">
+                  {{ summary.basicExpenseCount }}
+                </div>
               </div>
             </div>
           </div>
@@ -162,6 +243,51 @@
               </template>
             </UTable>
           </template>
+          
+          <template #basicExpense>
+            <div v-if="summary.basicExpenseCount > 0">
+              <div class="p-4 bg-orange-50 rounded-lg mb-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <div class="text-sm text-orange-600 mb-1">基础消费总额</div>
+                    <div class="text-xl font-bold text-orange-700">
+                      {{ formatCurrency(summary.totalBasicExpense) }}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="text-sm text-orange-600 mb-1">占总支出比例</div>
+                    <div class="text-xl font-bold text-orange-700">
+                      {{ summary.basicExpensePercentage.toFixed(1) }}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <UTable 
+                :columns="tableColumns" 
+                :rows="basicExpenseData"
+                :empty-state="{ icon: 'i-heroicons-home', label: '暂无基础消费数据' }"
+              >
+                <template #amount-data="{ row }">
+                  {{ formatCurrency(row.amount) }}
+                </template>
+                <template #percentage-data="{ row }">
+                  <div class="flex items-center">
+                    <div class="w-24 bg-gray-200 rounded-full h-2 mr-2">
+                      <div
+                        class="bg-orange-500 h-2 rounded-full"
+                        :style="{ width: `${row.percentage}%` }"
+                      ></div>
+                    </div>
+                    <span>{{ row.percentage.toFixed(1) }}%</span>
+                  </div>
+                </template>
+              </UTable>
+            </div>
+            <div v-else class="p-4 text-center text-gray-500">
+              暂无基础消费数据
+            </div>
+          </template>
         </UTabs>
       </div>
     </template>
@@ -219,17 +345,37 @@ const tableColumns = [
 
 // 选项
 const periodOptions = [
-  { label: '按周', value: 'week' },
   { label: '按月', value: 'month' },
   { label: '按季度', value: 'quarter' },
   { label: '按年', value: 'year' },
 ];
 
-const levelOptions = [
-  { label: '一级类别', value: 1 },
-  { label: '二级类别', value: 2 },
-  { label: '三级类别', value: 3 },
+const basicExpenseOptions = [
+  { label: '包含', value: 1 },
+  { label: '不包含', value: 0 },
 ];
+
+const quarterOptions = [
+  { label: '第一季度', value: 1 },
+  { label: '第二季度', value: 2 },
+  { label: '第三季度', value: 3 },
+  { label: '第四季度', value: 4 },
+]
+
+const monthOptions = [
+  { label: '一月', value: 1 },
+  { label: '二月', value: 2 },
+  { label: '三月', value: 3 },
+  { label: '四月', value: 4 },
+  { label: '五月', value: 5 },
+  { label: '六月', value: 6 },
+  { label: '七月', value: 7 },
+  { label: '八月', value: 8 },
+  { label: '九月', value: 9 },
+  { label: '十月', value: 10 },
+  { label: '十一月', value: 11 },
+  { label: '十二月', value: 12 },
+]
 
 // 动态生成年份选项，最近5年
 const yearOptions = computed(() => {
@@ -259,6 +405,11 @@ const tabItems = [
     slot: 'expense',
     icon: 'i-heroicons-arrow-trending-down',
   },
+  {
+    label: '基础消费',
+    slot: 'basicExpense',
+    icon: 'i-heroicons-home',
+  },
 ];
 
 // 状态变量
@@ -267,7 +418,7 @@ const hasData = ref(false);
 const filters = ref({
   period: 'month',
   year: new Date().getFullYear(),
-  categoryLevel: 1,
+  includeBasicExpense: 1,
 });
 
 // 报表数据
@@ -279,14 +430,19 @@ const summary = ref({
   totalCount: 0,
   incomeByCategoryCount: 0,
   expenseByCategoryCount: 0,
+  totalBasicExpense: 0,
+  basicExpenseCount: 0,
+  basicExpensePercentage: 0,
 });
 
 // 处理后的数据
 const periodLabels = ref([]);
 const incomeData = ref([]);
 const expenseData = ref([]);
+const basicExpenseData = ref([]);
 const incomeByPeriod = ref([]);
 const expenseByPeriod = ref([]);
+const basicExpenseByPeriod = ref([]);
 
 // 格式化金额
 const formatCurrency = (amount) => {
@@ -306,14 +462,24 @@ const loadReport = async () => {
   try {
     isLoading.value = true;
     
+    // 基础参数
     const params = {
       userId: getUserId(),
       period: filters.value.period,
       year: filters.value.year,
-      categoryLevel: filters.value.categoryLevel,
+      includeBasicExpense: !!filters.value.includeBasicExpense,
     };
     
-    const response = await api.get('/api/reports/summary', params);
+    // 根据周期类型添加必要参数
+    if (filters.value.period === 'month' && filters.value.month) {
+      params.month = filters.value.month;
+    } else if (filters.value.period === 'quarter' && filters.value.quarter) {
+      params.quarter = filters.value.quarter;
+    }
+    
+    console.log('Report params:', params);
+    
+    const response = await api.get('/api/report/summary', params);
     
     if (response.success) {
       reportData.value = response.data;
@@ -336,119 +502,62 @@ const loadReport = async () => {
 const processReportData = () => {
   const data = reportData.value;
   
-  if (!data || !data.results) {
+  if (!data) {
     hasData.value = false;
     return;
   }
   
-  // 重置数据
+  // 使用新的数据结构
   summary.value = {
-    totalIncome: 0,
-    totalExpense: 0,
-    balance: 0,
-    totalCount: 0,
-    incomeByCategoryCount: 0,
-    expenseByCategoryCount: 0,
+    totalIncome: data.totalIncome || 0,
+    totalExpense: data.totalExpense || 0,
+    balance: data.balance || 0,
+    totalCount: (data.incomeTransactionCount || 0) + (data.expenseTransactionCount || 0),
+    incomeByCategoryCount: Object.keys(data.incomeByCategory || {}).length,
+    expenseByCategoryCount: Object.keys(data.expenseByCategory || {}).length,
+    totalBasicExpense: data.totalBasicExpense || 0,
+    basicExpenseCount: data.basicExpenseCount || 0,
+    basicExpensePercentage: data.totalExpense ? (data.totalBasicExpense / data.totalExpense) * 100 : 0,
   };
   
-  // 收集所有周期
-  const periods = Object.keys(data.results).sort();
-  periodLabels.value = periods.map(period => {
-    // 格式化周期标签
-    const [type, value] = period.split('_');
-    switch (type) {
-      case 'week':
-        return `第${value}周`;
-      case 'month':
-        return `${value}月`;
-      case 'quarter':
-        return `第${value}季度`;
-      case 'year':
-        return `${value}年`;
-      default:
-        return period;
-    }
-  });
-  
-  // 收集收入和支出按周期
-  incomeByPeriod.value = periods.map(period => {
-    const periodData = data.results[period];
-    return periodData?.income?.total || 0;
-  });
-  
-  expenseByPeriod.value = periods.map(period => {
-    const periodData = data.results[period];
-    return periodData?.expense?.total || 0;
-  });
-  
-  // 收集收入和支出按类别
-  const incomeCategories = {};
-  const expenseCategories = {};
-  
-  periods.forEach(period => {
-    const periodData = data.results[period];
-    
-    // 处理收入
-    if (periodData?.income?.byCategory) {
-      Object.entries(periodData.income.byCategory).forEach(([categoryId, category]) => {
-        if (!incomeCategories[categoryId]) {
-          incomeCategories[categoryId] = {
-            id: categoryId,
-            name: category.name,
-            amount: 0,
-            count: 0,
-          };
-        }
-        
-        incomeCategories[categoryId].amount += category.amount;
-        incomeCategories[categoryId].count += category.count;
-        
-        summary.value.totalIncome += category.amount;
-        summary.value.totalCount += category.count;
-      });
-    }
-    
-    // 处理支出
-    if (periodData?.expense?.byCategory) {
-      Object.entries(periodData.expense.byCategory).forEach(([categoryId, category]) => {
-        if (!expenseCategories[categoryId]) {
-          expenseCategories[categoryId] = {
-            id: categoryId,
-            name: category.name,
-            amount: 0,
-            count: 0,
-          };
-        }
-        
-        expenseCategories[categoryId].amount += category.amount;
-        expenseCategories[categoryId].count += category.count;
-        
-        summary.value.totalExpense += category.amount;
-        summary.value.totalCount += category.count;
-      });
-    }
-  });
-  
-  // 计算结余
-  summary.value.balance = summary.value.totalIncome - summary.value.totalExpense;
-  
-  // 转换为数组并排序
-  incomeData.value = Object.values(incomeCategories)
-    .map(item => ({
-      ...item,
-      percentage: (item.amount / summary.value.totalIncome) * 100 || 0,
+  // 转换类别数据为数组
+  incomeData.value = Object.entries(data.incomeByCategory || {})
+    .map(([id, category]) => ({
+      id,
+      name: category.name,
+      amount: category.amount,
+      count: category.count,
+      percentage: (category.amount / data.totalIncome) * 100 || 0,
     }))
     .sort((a, b) => b.amount - a.amount);
   
-  expenseData.value = Object.values(expenseCategories)
-    .map(item => ({
-      ...item,
-      percentage: (item.amount / summary.value.totalExpense) * 100 || 0,
+  expenseData.value = Object.entries(data.expenseByCategory || {})
+    .map(([id, category]) => ({
+      id,
+      name: category.name,
+      amount: category.amount,
+      count: category.count,
+      percentage: (category.amount / data.totalExpense) * 100 || 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+    
+  basicExpenseData.value = Object.entries(data.basicExpenseByCategory || {})
+    .map(([id, category]) => ({
+      id,
+      name: category.name,
+      amount: category.amount,
+      count: category.count,
+      percentage: (category.amount / data.totalBasicExpense) * 100 || 0,
     }))
     .sort((a, b) => b.amount - a.amount);
   
-  summary.value.incomeByCategoryCount = incomeData.value.length;
-  summary.value.expenseByCategoryCount = expenseData.value.length;
+  // 对于单一周期，可能没有周期数据，直接生成单一标签
+  if (filters.value.period === 'month' || filters.value.period === 'quarter' || filters.value.year) {
+    periodLabels.value = [data.period];
+    incomeByPeriod.value = [data.totalIncome];
+    expenseByPeriod.value = [data.totalExpense - data.totalBasicExpense]; // 不含基础消费的支出
+    basicExpenseByPeriod.value = [data.totalBasicExpense];
+  }
 };
 
 // 渲染图表
@@ -481,6 +590,15 @@ const renderCharts = () => {
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
             fill: true,
             tension: 0.2,
+          },
+          {
+            label: '基础消费',
+            data: basicExpenseByPeriod.value,
+            borderColor: 'rgb(249, 115, 22)',
+            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+            fill: true,
+            tension: 0.2,
+            borderDash: [5, 5], // 添加虚线样式，区分基础消费
           },
         ],
       },

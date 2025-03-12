@@ -65,9 +65,11 @@ export default defineEventHandler(async (event) => {
     const parentId = query.parentId as string;
     const type = query.type as string;  // 收入或支出类型
     const treeView = query.treeView === 'true';  // 是否返回树形结构
+    const leafOnly = query.leafOnly === 'true';
+    const userId = query.userId as string;
     
     // 构建查询条件
-    const filter: any = {};
+    let filter: any = {};
     
     if (level !== undefined) {
       filter.level = level;
@@ -82,6 +84,10 @@ export default defineEventHandler(async (event) => {
     } else if (parentId === '') {
       // 如果parentId为空字符串，查询顶级类别
       filter.parentId = null;
+    }
+    
+    if (userId) {
+      filter.userId = userId;
     }
     
     // 查询类别列表
@@ -104,8 +110,26 @@ export default defineEventHandler(async (event) => {
         data: categoryTree,
       };
     } else {
-      // 普通列表视图
-      categories = await Category.find(filter).sort({ name: 1 });
+      // 获取所有类别
+      categories = await Category.find(filter).lean();
+      
+      // 如果只需要叶子节点，过滤掉有子类别的类别
+      if (leafOnly) {
+        // 创建一个 Set 来存储所有作为父类别的 ID
+        const parentIds = new Set();
+        
+        // 收集所有父类别 ID
+        for (const category of categories) {
+          if (category.parentId) {
+            parentIds.add(category.parentId.toString());
+          }
+        }
+        
+        // 只保留不在父类别集合中的类别
+        categories = categories.filter(category => 
+          !parentIds.has(category._id.toString())
+        );
+      }
       
       return {
         success: true,
