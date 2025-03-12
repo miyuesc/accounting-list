@@ -345,9 +345,9 @@ const tableColumns = [
 
 // 选项
 const periodOptions = [
-  { label: '按月', value: 'month' },
-  { label: '按季度', value: 'quarter' },
   { label: '按年', value: 'year' },
+  { label: '按季度', value: 'quarter' },
+  { label: '按月', value: 'month' },
 ];
 
 const basicExpenseOptions = [
@@ -416,7 +416,7 @@ const tabItems = [
 const isLoading = ref(false);
 const hasData = ref(false);
 const filters = ref({
-  period: 'month',
+  period: 'year',
   year: new Date().getFullYear(),
   includeBasicExpense: 1,
 });
