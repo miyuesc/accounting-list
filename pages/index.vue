@@ -24,7 +24,7 @@
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
           <div class="text-3xl text-primary-500 mb-4 i-heroicons-chart-pie"></div>
           <h3 class="text-lg font-semibold mb-2">可视化报表</h3>
-          <p class="text-gray-600">按周、月、季度、年查看收支报表，直观了解你的财务状况。</p>
+          <p class="text-gray-600">按月、季度、年查看收支报表，直观了解你的财务状况。</p>
         </div>
         
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
@@ -67,17 +67,17 @@
       
       <!-- 快速入口 -->
       <div class="flex flex-wrap justify-center gap-4">
-        <UButton to="/transactions" color="primary">
-          账单列表
-        </UButton>
-        <UButton to="/reports" color="primary" variant="outline">
-          统计报表
-        </UButton>
         <UButton to="/categories" color="primary" variant="outline">
           分类管理
         </UButton>
+        <UButton to="/transactions" color="primary">
+          账单列表
+        </UButton>
         <UButton to="/basic-expenses" color="primary" variant="outline">
           基础消费
+        </UButton>
+        <UButton to="/reports" color="primary" variant="outline">
+          统计报表
         </UButton>
       </div>
     </div>

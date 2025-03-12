@@ -81,10 +81,10 @@ const route = useRoute();
 
 // 导航项
 const navItems = [
-  { label: '交易记录', to: '/transactions', icon: 'i-heroicons-banknotes' },
-  { label: '统计报表', to: '/reports', icon: 'i-heroicons-chart-bar' },
   { label: '账单类型', to: '/categories', icon: 'i-heroicons-tag' },
   { label: '基础消费', to: '/basic-expenses', icon: 'i-heroicons-home' },
+  { label: '交易记录', to: '/transactions', icon: 'i-heroicons-banknotes' },
+  { label: '统计报表', to: '/reports', icon: 'i-heroicons-chart-bar' },
   { label: '设置', to: '/settings', icon: 'i-heroicons-cog-6-tooth' },
 ];
 

@@ -252,49 +252,27 @@
             </UTable>
           </template>
           
-          <template #basicExpense>
-            <div v-if="summary.basicExpenseCount > 0">
-              <div class="p-4 bg-orange-50 rounded-lg mb-4">
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <div class="text-sm text-orange-600 mb-1">基础消费总额</div>
-                    <div class="text-xl font-bold text-orange-700">
-                      {{ formatCurrency(summary.totalBasicExpense) }}
-                    </div>
+          <template #basicExpense>     
+            <UTable 
+              :columns="tableColumns" 
+              :rows="basicExpenseData"
+              :empty-state="{ icon: 'i-heroicons-home', label: '暂无基础消费数据' }"
+            >
+              <template #amount-data="{ row }">
+                {{ formatCurrency(row.amount) }}
+              </template>
+              <template #percentage-data="{ row }">
+                <div class="flex items-center">
+                  <div class="w-24 bg-gray-200 rounded-full h-2 mr-2">
+                    <div
+                      class="bg-orange-500 h-2 rounded-full"
+                      :style="{ width: `${row.percentage}%` }"
+                    ></div>
                   </div>
-                  <div>
-                    <div class="text-sm text-orange-600 mb-1">占总支出比例</div>
-                    <div class="text-xl font-bold text-orange-700">
-                      {{ summary.basicExpensePercentage.toFixed(1) }}%
-                    </div>
-                  </div>
+                  <span>{{ row.percentage.toFixed(1) }}%</span>
                 </div>
-              </div>
-              
-              <UTable 
-                :columns="tableColumns" 
-                :rows="basicExpenseData"
-                :empty-state="{ icon: 'i-heroicons-home', label: '暂无基础消费数据' }"
-              >
-                <template #amount-data="{ row }">
-                  {{ formatCurrency(row.amount) }}
-                </template>
-                <template #percentage-data="{ row }">
-                  <div class="flex items-center">
-                    <div class="w-24 bg-gray-200 rounded-full h-2 mr-2">
-                      <div
-                        class="bg-orange-500 h-2 rounded-full"
-                        :style="{ width: `${row.percentage}%` }"
-                      ></div>
-                    </div>
-                    <span>{{ row.percentage.toFixed(1) }}%</span>
-                  </div>
-                </template>
-              </UTable>
-            </div>
-            <div v-else class="p-4 text-center text-gray-500">
-              暂无基础消费数据
-            </div>
+              </template>
+            </UTable>
           </template>
         </UTabs>
       </div>
@@ -553,6 +531,7 @@ const loadReport = async () => {
       year: filters.value.year,
       includeBasicExpense: !!filters.value.includeBasicExpense,
       includeMonthlyData: true, // 添加此参数，确保获取月度数据
+      userId: await getUserId(), // 添加userId参数
     };
     
     // 根据周期类型添加必要参数
@@ -567,8 +546,8 @@ const loadReport = async () => {
       params.categoryLevel = filters.value.categoryLevel;
     }
     
-    // 发送报表请求
-    const response = await api.get('/api/reports/summary', params);
+    // 发送报表请求 - 修改API路径
+    const response = await api.get('/api/report/summary', params);
     
     if (response.success) {
       reportData.value = response.data;
@@ -610,7 +589,7 @@ const processReportData = () => {
   summary.value = {
     totalIncome: data.totalIncome || 0,
     totalExpense: data.totalExpense || 0,
-    balance: data.balance || 0,
+    balance: (data.totalIncome || 0) - (data.totalExpense || 0),
     totalCount: (data.incomeTransactionCount || 0) + (data.expenseTransactionCount || 0),
     incomeByCategoryCount: Object.keys(data.incomeByCategory || {}).length,
     expenseByCategoryCount: Object.keys(data.expenseByCategory || {}).length,
@@ -713,6 +692,7 @@ const buildCategoryTree = () => {
   // 处理收入类别树
   const incomeCategoryTree = buildTreeFromCategories(
     Object.entries(reportData.value.incomeByCategory || {})
+      .filter(([_, category]) => category.type === 'income')
       .map(([id, category]) => ({
         id,
         name: category.name,
@@ -726,7 +706,7 @@ const buildCategoryTree = () => {
   // 处理支出类别树 - 根据需要隐藏基础消费
   const expenseCategoryTree = buildTreeFromCategories(
     Object.entries(reportData.value.expenseByCategory || {})
-      .filter(([_, category]) => displayBasicExpense.value || !category.isBasicExpense)
+      .filter(([_, category]) => (displayBasicExpense.value || !category.isBasicExpense) && category.type === 'expense')
       .map(([id, category]) => ({
         id,
         name: category.name,
