@@ -2,9 +2,15 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-xl font-semibold">交易记录列表</h2>
-      <UButton color="primary" icon="i-heroicons-plus" @click="showAddModal = true">
-        添加交易
-      </UButton>
+      <div class="flex space-x-2">
+        <UButton color="primary" @click="showAddModal = true">
+          添加交易
+        </UButton>
+        <UButton color="gray" @click="openImportModal()">
+          <UIcon name="i-heroicons-arrow-up-tray" class="mr-1" />
+          导入Excel
+        </UButton>
+      </div>
     </div>
     
     <!-- 过滤器 -->
@@ -199,12 +205,113 @@
         </template>
       </UCard>
     </UModal>
+    
+    <!-- Excel导入模态框 -->
+    <UModal v-model="showImportModal" :ui="{ width: 'sm:max-w-xl' }">
+      <UCard>
+        <template #header>
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold">导入Excel交易记录</h3>
+            <UButton color="gray" variant="ghost" icon="i-heroicons-x-mark" @click="showImportModal = false" />
+          </div>
+        </template>
+        
+        <div v-if="!importResults">
+          <p class="mb-4 text-gray-600">
+            请上传包含交易记录的Excel文件。文件必须包含以下列：
+          </p>
+          
+          <ul class="list-disc pl-5 mb-4 text-sm text-gray-600">
+            <li>收入/支出 (必填，文本"收入"或"支出")</li>
+            <li>金额 (必填，数值)</li>
+            <li>日期 (必填，日期格式)</li>
+            <li>父级类别 (必填，文本)</li>
+            <li>子级类别 (可选，文本)</li>
+            <li>备注 (可选，文本)</li>
+          </ul>
+          
+          <div class="mb-4">
+            <UFormGroup label="Excel文件">
+              <UInput 
+                type="file" 
+                accept=".xlsx,.xls" 
+                @change="handleFileChange"
+                class="py-2" 
+              />
+            </UFormGroup>
+          </div>
+          
+          <p class="text-xs text-gray-500 mb-4">
+            注意：系统会自动创建不存在的类别，并建立正确的父子关系。
+          </p>
+        </div>
+        
+        <div v-else>
+          <div class="mb-4">
+            <div class="flex justify-between mb-2">
+              <h4 class="font-medium">导入结果</h4>
+              <div class="flex space-x-2">
+                <span class="text-green-600">成功: {{ importResults.succeeded }}</span>
+                <span class="text-red-600">失败: {{ importResults.failed }}</span>
+              </div>
+            </div>
+            
+            <!-- 失败记录列表 -->
+            <div v-if="importResults.errors && importResults.errors.length > 0" class="mt-4">
+              <h4 class="font-medium mb-2 text-red-600">错误详情:</h4>
+              <div class="max-h-64 overflow-y-auto border rounded p-2">
+                <div v-for="(error, index) in importResults.errors" :key="index" class="mb-2 text-sm">
+                  <p class="mb-1"><span class="font-medium">行 {{ error.row }}:</span> {{ error.message }}</p>
+                  <p class="text-gray-600 text-xs pl-4">数据: {{ error.data }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <UButton 
+              v-if="!importResults"
+              color="primary"
+              :loading="isImporting"
+              :disabled="!importFile || isImporting"
+              @click="importTransactions"
+            >
+              开始导入
+            </UButton>
+            <UButton 
+              v-if="importResults"
+              color="primary"
+              @click="resetImport"
+            >
+              继续导入
+            </UButton>
+            <UButton 
+              color="gray" 
+              variant="soft" 
+              @click="closeImportModal"
+            >
+              关闭
+            </UButton>
+          </div>
+        </template>
+      </UCard>
+    </UModal>
   </div>
 </template>
 
 <script setup>
-import { api, getUserId } from '~/utils/api';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { useToast } from '@nuxt/ui/dist/runtime/composables/useToast';
 import dayjs from 'dayjs';
+import { api, getUserId } from '~/utils/api';
+
+// 交易类型选项
+const typeOptions = [
+  { label: '支出', value: 'expense' },
+  { label: '收入', value: 'income' },
+];
 
 // 表格列定义
 const columns = [
@@ -221,13 +328,12 @@ const columns = [
     label: '金额',
   },
   {
-    key: 'description',
-    label: '描述',
-  },
-  {
     key: 'transactionDate',
     label: '日期',
-    sortable: true,
+  },
+  {
+    key: 'description',
+    label: '备注',
   },
   {
     key: 'actions',
@@ -235,41 +341,34 @@ const columns = [
   },
 ];
 
-// 过滤选项
-const typeOptions = [
-  { label: '收入', value: 'income' },
-  { label: '支出', value: 'expense' },
-];
+// Toast消息
+const toast = useToast();
 
 // 状态变量
+const isLoading = ref(false);
+const isSubmitting = ref(false);
+const isDeleting = ref(false);
+const isImporting = ref(false);
 const transactions = ref([]);
 const categoryOptions = ref([]);
-const pagination = ref({
-  page: 1,
-  limit: 10,
-  total: 0,
-  pages: 1,
-});
-const filters = ref({
+const totalCount = ref(0);
+const currentTransaction = ref(null);
+const showAddModal = ref(false);
+const showEditModal = ref(false);
+const showDeleteModal = ref(false);
+const showImportModal = ref(false);
+const importResults = ref(null);
+const importFile = ref(null);
+
+// 过滤和分页状态
+const filters = reactive({
   type: '',
   categoryId: '',
   startDate: '',
   endDate: '',
+  page: 1,
+  limit: 10,
 });
-const isLoading = ref(false);
-const isSaving = ref(false);
-const isDeleting = ref(false);
-const showAddModal = ref(false);
-const showDeleteModal = ref(false);
-const formState = ref({
-  type: 'expense',
-  categoryId: '',
-  amount: 0,
-  description: '',
-  transactionDate: dayjs().format('YYYY-MM-DD'),
-});
-const isEditing = ref(false);
-const currentTransaction = ref(null);
 
 // 添加计算属性，根据选择的类型筛选类别
 const filteredCategoryOptions = computed(() => {
@@ -277,7 +376,7 @@ const filteredCategoryOptions = computed(() => {
   const allCategories = categoryOptions.value;
   
   // 如果没有选择类型或没有类别数据，返回全部
-  if (!filters.value.type || allCategories.length === 0) {
+  if (!filters.type || allCategories.length === 0) {
     return allCategories;
   }
   
@@ -285,7 +384,7 @@ const filteredCategoryOptions = computed(() => {
   return allCategories.filter(category => {
     // 假设每个类别对象中有 type 属性表示其类型
     // 如果您的类别对象结构不同，需要调整这里
-    return category.type === filters.value.type;
+    return category.type === filters.type;
   });
 });
 
@@ -321,13 +420,11 @@ const formatDate = (date) => {
 
 // 重置过滤条件
 const resetFilters = () => {
-  filters.value = {
-    type: '',
-    categoryId: '',
-    startDate: '',
-    endDate: '',
-  };
-  pagination.value.page = 1;
+  filters.type = '';
+  filters.categoryId = '';
+  filters.startDate = '';
+  filters.endDate = '';
+  filters.page = 1;
   loadTransactions();
 };
 
@@ -336,32 +433,7 @@ const loadTransactions = async () => {
   try {
     isLoading.value = true;
     
-    // 构建查询参数
-    const params = {
-      page: pagination.value.page,
-      limit: pagination.value.limit,
-    };
-    
-    if (filters.value.type) {
-      params.type = filters.value.type;
-    }
-    
-    if (filters.value.categoryId) {
-      params.categoryId = filters.value.categoryId;
-    }
-    
-    // 更新为日期范围查询
-    if (filters.value.startDate) {
-      params.startDate = filters.value.startDate;
-    }
-    
-    if (filters.value.endDate) {
-      params.endDate = filters.value.endDate;
-    }
-    
-    console.log('查询参数:', params);
-    
-    const response = await api.get('/api/transactions', params);
+    const response = await api.get('/api/transactions', filters);
     
     if (response.success) {
       transactions.value = response.data.transactions?.map(t => ({
@@ -369,7 +441,9 @@ const loadTransactions = async () => {
         categoryId: t.categoryId._id || t.categoryId,
         categoryName: t.categoryId.name
       }));
-      pagination.value = response.data.pagination;
+      totalCount.value = response.data.totalCount;
+      filters.page = response.data.page;
+      filters.limit = response.data.limit;
     }
   } catch (error) {
     console.error('加载交易记录错误:', error);
@@ -444,7 +518,7 @@ const editTransaction = (transaction) => {
 // 保存交易
 const saveTransaction = async () => {
   try {
-    isSaving.value = true;
+    isSubmitting.value = true;
     
     const data = {
       ...formState.value,
@@ -465,7 +539,7 @@ const saveTransaction = async () => {
   } catch (error) {
     console.error('保存交易错误:', error);
   } finally {
-    isSaving.value = false;
+    isSubmitting.value = false;
   }
 };
 
@@ -502,9 +576,9 @@ watch(() => formState.value.type, (newType) => {
 });
 
 // 同样在筛选器中也监听类型变化
-watch(() => filters.value.type, (newType) => {
+watch(() => filters.type, (newType) => {
   // 类型变化时清空类别选择
-  filters.value.categoryId = '';
+  filters.categoryId = '';
 });
 
 // 初始加载
@@ -512,4 +586,80 @@ onMounted(() => {
   loadCategories();
   loadTransactions();
 });
+
+// 打开导入模态框
+const openImportModal = () => {
+  showImportModal.value = true;
+  importResults.value = null;
+  importFile.value = null;
+};
+
+// 处理文件变化
+const handleFileChange = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    importFile.value = file;
+  }
+};
+
+// 导入交易
+const importTransactions = async () => {
+  if (!importFile.value) {
+    toast.add({
+      title: '请选择文件',
+      color: 'red'
+    });
+    return;
+  }
+  
+  try {
+    isImporting.value = true;
+    
+    const formData = new FormData();
+    formData.append('file', importFile.value);
+    
+    const response = await api.post('/api/transactions/import', formData);
+    
+    if (response.success) {
+      importResults.value = response.data;
+      
+      // 显示导入结果摘要
+      toast.add({
+        title: '导入完成',
+        description: `成功: ${response.data.succeeded}, 失败: ${response.data.failed}`,
+        color: response.data.failed > 0 ? 'amber' : 'green'
+      });
+      
+      // 刷新交易记录列表
+      loadTransactions();
+    }
+  } catch (error) {
+    console.error('导入交易错误:', error);
+    toast.add({
+      title: '导入失败',
+      description: error.message || '导入Excel文件时发生错误',
+      color: 'red'
+    });
+  } finally {
+    isImporting.value = false;
+  }
+};
+
+// 重置导入
+const resetImport = () => {
+  importResults.value = null;
+  importFile.value = null;
+  
+  // 重置文件输入
+  const fileInput = document.querySelector('input[type="file"]');
+  if (fileInput) {
+    fileInput.value = '';
+  }
+};
+
+// 关闭导入模态框
+const closeImportModal = () => {
+  showImportModal.value = false;
+  resetImport();
+};
 </script> 

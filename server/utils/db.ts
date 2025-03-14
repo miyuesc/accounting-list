@@ -9,6 +9,8 @@ export async function connectToDatabase() {
     return;
   }
 
+  console.log('=> starting database connection');
+
   try {
     const config = useRuntimeConfig();
     const mongodbUri = config.mongodbUri;

@@ -230,11 +230,13 @@
           </UFormGroup>
           
           <UFormGroup v-if="!isEditing" label="类型" name="type" class="form-group">
-            <USelect
+            <USelectMenu
               v-model="formState.type"
               :options="typeOptions"
               placeholder="请选择类型"
               class="form-input"
+              value-attribute="value"
+              option-attribute="label"
             />
           </UFormGroup>
           
