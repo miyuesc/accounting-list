@@ -39,9 +39,9 @@ export const api = {
   /**
    * GET请求
    */
-  async get(url: string, params = {}) {
+  async get<T = any>(url: string, params = {}) {
     try {
-      return await $fetch(url, {
+      return await $fetch<T>(url, {
         method: 'GET',
         params,
         headers: getAuthHeader(),
@@ -55,9 +55,9 @@ export const api = {
   /**
    * POST请求
    */
-  async post(url: string, data = {}) {
+  async post<T = any>(url: string, data = {}) {
     try {
-      return await $fetch(url, {
+      return await $fetch<T>(url, {
         method: 'POST',
         body: data,
         headers: getAuthHeader(),
@@ -71,9 +71,9 @@ export const api = {
   /**
    * PUT请求
    */
-  async put(url: string, data = {}) {
+  async put<T = any>(url: string, data = {}) {
     try {
-      return await $fetch(url, {
+      return await $fetch<T>(url, {
         method: 'PUT',
         body: data,
         headers: getAuthHeader(),
@@ -87,9 +87,9 @@ export const api = {
   /**
    * DELETE请求
    */
-  async delete(url: string) {
+  async delete<T = any>(url: string) {
     try {
-      return await $fetch(url, {
+      return await $fetch<T>(url, {
         method: 'DELETE',
         headers: getAuthHeader(),
       });

@@ -304,6 +304,12 @@ import { Chart, registerables } from 'chart.js';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 
+// 设置页面标题
+useHead({
+  title: '统计报表',
+  titleTemplate: '%s - 记账本'
+});
+
 // 注册Chart.js组件
 Chart.register(...registerables);
 dayjs.locale('zh-cn');

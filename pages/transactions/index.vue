@@ -168,7 +168,7 @@
             </UButton>
             <UButton
               color="primary"
-              :loading="isSaving"
+              :loading="isSubmitting"
               @click="saveTransaction"
             >
               保存
@@ -301,11 +301,62 @@
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue';
-import { useToast } from '@nuxt/ui/dist/runtime/composables/useToast';
+<script setup lang="ts">
+import { ref, reactive, onMounted, computed, watch, watchEffect } from 'vue';
 import dayjs from 'dayjs';
 import { api, getUserId } from '~/utils/api';
+
+// 设置页面标题
+useHead({
+  title: '交易记录',
+  titleTemplate: '%s - 记账本'
+});
+
+// 类型定义
+interface Transaction {
+  _id: string;
+  type: 'income' | 'expense';
+  categoryId: {
+    _id: string;
+    name: string;
+    type: string;
+  };
+  amount: number;
+  description: string;
+  transactionDate: string;
+  categoryName?: string;
+}
+
+interface Category {
+  _id: string;
+  name: string;
+  type: string;
+}
+
+interface CategoryOption {
+  label: string;
+  value: string;
+  type: string;
+}
+
+interface Filters {
+  type: string;
+  categoryId: string;
+  startDate: string;
+  endDate: string;
+  page: number;
+  limit: number;
+}
+
+interface ImportResult {
+  succeeded: number;
+  failed: number;
+  errors?: Array<{
+    row: number;
+    message: string;
+    data: any;
+  }>;
+}
 
 // 交易类型选项
 const typeOptions = [
@@ -349,19 +400,27 @@ const isLoading = ref(false);
 const isSubmitting = ref(false);
 const isDeleting = ref(false);
 const isImporting = ref(false);
-const transactions = ref([]);
-const categoryOptions = ref([]);
+const transactions = ref<Transaction[]>([]);
+const categoryOptions = ref<CategoryOption[]>([]);
 const totalCount = ref(0);
-const currentTransaction = ref(null);
+const currentTransaction = ref<Transaction | null>(null);
 const showAddModal = ref(false);
-const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const showImportModal = ref(false);
-const importResults = ref(null);
-const importFile = ref(null);
+const importResults = ref<ImportResult | null>(null);
+const importFile = ref<File | null>(null);
+const isEditing = ref(false);
+
+// 分页状态
+const pagination = ref({
+  page: 1,
+  limit: 10,
+  total: 0,
+  pages: 1
+});
 
 // 过滤和分页状态
-const filters = reactive({
+const filters = ref<Filters>({
   type: '',
   categoryId: '',
   startDate: '',
@@ -370,42 +429,43 @@ const filters = reactive({
   limit: 10,
 });
 
+// 表单状态
+const formState = ref({
+  type: 'expense',
+  categoryId: '',
+  amount: 0,
+  description: '',
+  transactionDate: dayjs().format('YYYY-MM-DD'),
+});
+
 // 添加计算属性，根据选择的类型筛选类别
 const filteredCategoryOptions = computed(() => {
-  // 获取所有类别
   const allCategories = categoryOptions.value;
   
-  // 如果没有选择类型或没有类别数据，返回全部
-  if (!filters.type || allCategories.length === 0) {
+  if (!filters.value.type || allCategories.length === 0) {
     return allCategories;
   }
   
-  // 根据选择的类型筛选
   return allCategories.filter(category => {
-    // 假设每个类别对象中有 type 属性表示其类型
-    // 如果您的类别对象结构不同，需要调整这里
-    return category.type === filters.type;
+    return category.type === filters.value.type;
   });
 });
 
 // 修改表单中的类别计算属性
 const formCategoryOptions = computed(() => {
-  // 获取所有类别
   const allCategories = categoryOptions.value;
   
-  // 如果没有选择类型或没有类别数据，返回全部
   if (!formState.value.type || allCategories.length === 0) {
     return allCategories;
   }
   
-  // 根据当前表单中选择的类型筛选
   return allCategories.filter(category => {
     return category.type === formState.value.type;
   });
 });
 
 // 格式化金额
-const formatCurrency = (amount) => {
+const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('zh-CN', {
     style: 'decimal',
     minimumFractionDigits: 2,
@@ -414,17 +474,20 @@ const formatCurrency = (amount) => {
 };
 
 // 格式化日期
-const formatDate = (date) => {
+const formatDate = (date: string) => {
   return dayjs(date).format('YYYY-MM-DD');
 };
 
 // 重置过滤条件
 const resetFilters = () => {
-  filters.type = '';
-  filters.categoryId = '';
-  filters.startDate = '';
-  filters.endDate = '';
-  filters.page = 1;
+  filters.value = {
+    ...filters.value,
+    type: '',
+    categoryId: '',
+    startDate: '',
+    endDate: '',
+    page: 1,
+  };
   loadTransactions();
 };
 
@@ -433,20 +496,40 @@ const loadTransactions = async () => {
   try {
     isLoading.value = true;
     
-    const response = await api.get('/api/transactions', filters);
+    const response = await api.get<{
+      success: boolean;
+      data: {
+        transactions: Transaction[];
+        totalCount: number;
+        page: number;
+        limit: number;
+      };
+    }>('/api/transactions', filters.value);
     
     if (response.success) {
-      transactions.value = response.data.transactions?.map(t => ({
+      transactions.value = response.data.transactions.map(t => ({
         ...t,
-        categoryId: t.categoryId._id || t.categoryId,
         categoryName: t.categoryId.name
       }));
       totalCount.value = response.data.totalCount;
-      filters.page = response.data.page;
-      filters.limit = response.data.limit;
+      filters.value.page = response.data.page;
+      filters.value.limit = response.data.limit;
+      
+      // 更新分页信息
+      pagination.value = {
+        page: response.data.page,
+        limit: response.data.limit,
+        total: response.data.totalCount,
+        pages: Math.ceil(response.data.totalCount / response.data.limit)
+      };
     }
   } catch (error) {
     console.error('加载交易记录错误:', error);
+    toast.add({
+      title: '加载失败',
+      description: '加载交易记录时发生错误',
+      color: 'red'
+    });
   } finally {
     isLoading.value = false;
   }
@@ -455,21 +538,25 @@ const loadTransactions = async () => {
 // 加载类别
 const loadCategories = async () => {
   try {
-    const response = await api.get('/api/categories');
+    const response = await api.get<{
+      success: boolean;
+      data: Category[];
+    }>('/api/categories');
     
     if (response.success) {
-      console.log('获取到的类别数据:', response.data);
-      
       categoryOptions.value = response.data.map(category => ({
         label: category.name,
         value: category._id,
-        type: category.type // 保留类型信息
+        type: category.type
       }));
-      
-      console.log('处理后的类别选项:', categoryOptions.value);
     }
   } catch (error) {
     console.error('加载类别错误:', error);
+    toast.add({
+      title: '加载失败',
+      description: '加载类别时发生错误',
+      color: 'red'
+    });
   }
 };
 
@@ -493,19 +580,18 @@ const resetForm = () => {
 };
 
 // 编辑交易
-const editTransaction = (transaction) => {
+const editTransaction = (transaction: Transaction) => {
   isEditing.value = true;
   currentTransaction.value = transaction;
   
   formState.value = {
     type: transaction.type,
-    categoryId: transaction.categoryId._id || transaction.categoryId,
+    categoryId: transaction.categoryId._id,
     amount: transaction.amount,
     description: transaction.description,
     transactionDate: formatDate(transaction.transactionDate),
   };
   
-  // 确保在打开编辑对话框前已加载好对应类型的类别
   if (categoryOptions.value.length === 0) {
     loadCategories().then(() => {
       showAddModal.value = true;
@@ -527,24 +613,39 @@ const saveTransaction = async () => {
     let response;
     
     if (isEditing.value && currentTransaction.value) {
-      response = await api.put(`/api/transactions/${currentTransaction.value._id}`, data);
+      response = await api.put<{
+        success: boolean;
+        data: Transaction;
+      }>(`/api/transactions/${currentTransaction.value._id}`, data);
     } else {
-      response = await api.post('/api/transactions', data);
+      response = await api.post<{
+        success: boolean;
+        data: Transaction;
+      }>('/api/transactions', data);
     }
     
     if (response.success) {
       closeModal();
       loadTransactions();
+      toast.add({
+        title: '保存成功',
+        color: 'green'
+      });
     }
   } catch (error) {
     console.error('保存交易错误:', error);
+    toast.add({
+      title: '保存失败',
+      description: '保存交易记录时发生错误',
+      color: 'red'
+    });
   } finally {
     isSubmitting.value = false;
   }
 };
 
 // 确认删除
-const confirmDelete = (transaction) => {
+const confirmDelete = (transaction: Transaction) => {
   currentTransaction.value = transaction;
   showDeleteModal.value = true;
 };
@@ -556,29 +657,43 @@ const deleteTransaction = async () => {
   try {
     isDeleting.value = true;
     
-    const response = await api.delete(`/api/transactions/${currentTransaction.value._id}`);
+    const response = await api.delete<{
+      success: boolean;
+      message?: string;
+    }>(`/api/transactions/${currentTransaction.value._id}`);
     
     if (response.success) {
       showDeleteModal.value = false;
       loadTransactions();
+      toast.add({
+        title: '删除成功',
+        color: 'green'
+      });
     }
   } catch (error) {
     console.error('删除交易错误:', error);
+    toast.add({
+      title: '删除失败',
+      description: '删除交易记录时发生错误',
+      color: 'red'
+    });
   } finally {
     isDeleting.value = false;
   }
 };
 
 // 监听类型变化
-watch(() => formState.value.type, (newType) => {
-  // 类型变化时清空类别选择
-  formState.value.categoryId = '';
+watchEffect(() => {
+  if (formState.value.type) {
+    formState.value.categoryId = '';
+  }
 });
 
-// 同样在筛选器中也监听类型变化
-watch(() => filters.type, (newType) => {
-  // 类型变化时清空类别选择
-  filters.categoryId = '';
+// 监听筛选器类型变化
+watchEffect(() => {
+  if (filters.value.type) {
+    filters.value.categoryId = '';
+  }
 });
 
 // 初始加载
@@ -595,8 +710,9 @@ const openImportModal = () => {
 };
 
 // 处理文件变化
-const handleFileChange = (event) => {
-  const file = event.target.files[0];
+const handleFileChange = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
   if (file) {
     importFile.value = file;
   }
@@ -618,26 +734,27 @@ const importTransactions = async () => {
     const formData = new FormData();
     formData.append('file', importFile.value);
     
-    const response = await api.post('/api/transactions/import', formData);
+    const response = await api.post<{
+      success: boolean;
+      data: ImportResult;
+    }>('/api/transactions/import', formData);
     
     if (response.success) {
       importResults.value = response.data;
       
-      // 显示导入结果摘要
       toast.add({
         title: '导入完成',
         description: `成功: ${response.data.succeeded}, 失败: ${response.data.failed}`,
         color: response.data.failed > 0 ? 'amber' : 'green'
       });
       
-      // 刷新交易记录列表
       loadTransactions();
     }
   } catch (error) {
     console.error('导入交易错误:', error);
     toast.add({
       title: '导入失败',
-      description: error.message || '导入Excel文件时发生错误',
+      description: error instanceof Error ? error.message : '导入Excel文件时发生错误',
       color: 'red'
     });
   } finally {
@@ -650,10 +767,11 @@ const resetImport = () => {
   importResults.value = null;
   importFile.value = null;
   
-  // 重置文件输入
-  const fileInput = document.querySelector('input[type="file"]');
-  if (fileInput) {
-    fileInput.value = '';
+  if (process.client) {
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
   }
 };
 

@@ -64,16 +64,16 @@
     </div>
     
     <!-- 树形视图 -->
-    <div v-if="viewMode === 'tree' && !isLoading" class="grid md:grid-cols-2 gap-6">
+    <div v-if="viewMode === 'tree' && !isLoading" class="grid md:grid-cols-2 gap-4">
       <!-- 收入分类 -->
-      <div class="app-card p-0 overflow-hidden">
-        <div class="bg-green-50 p-4 border-b border-green-100">
-          <h3 class="section-title m-0 flex items-center text-green-700">
-            <UIcon name="i-heroicons-arrow-trending-up" class="w-5 h-5 mr-2" />
+      <div class="app-card p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div class="bg-green-50/80 p-3 border-b border-green-100">
+          <h3 class="section-title m-0 flex items-center text-green-700 text-sm">
+            <UIcon name="i-heroicons-arrow-trending-up" class="w-4 h-4 mr-2" />
             收入分类 ({{ incomeCategories.length }})
           </h3>
         </div>
-        <div class="p-4">
+        <div class="p-3">
           <template v-if="incomeCategories.length > 0">
             <CategoryTree
               :categories="incomeCategories"
@@ -82,14 +82,14 @@
               @delete="confirmDelete"
             />
           </template>
-          <div v-else class="text-center py-8 text-gray-500">
-            <UIcon name="i-heroicons-tag" class="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p>暂无收入分类</p>
+          <div v-else class="text-center py-6 text-gray-500">
+            <UIcon name="i-heroicons-tag" class="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p class="text-sm">暂无收入分类</p>
             <UButton 
-              size="sm" 
+              size="xs" 
               color="green" 
               variant="soft" 
-              class="mt-3"
+              class="mt-2"
               @click="addNewCategory('income')"
             >
               添加收入分类
@@ -99,14 +99,14 @@
       </div>
       
       <!-- 支出分类 -->
-      <div class="app-card p-0 overflow-hidden">
-        <div class="bg-red-50 p-4 border-b border-red-100">
-          <h3 class="section-title m-0 flex items-center text-red-700">
-            <UIcon name="i-heroicons-arrow-trending-down" class="w-5 h-5 mr-2" />
+      <div class="app-card p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div class="bg-red-50/80 p-3 border-b border-red-100">
+          <h3 class="section-title m-0 flex items-center text-red-700 text-sm">
+            <UIcon name="i-heroicons-arrow-trending-down" class="w-4 h-4 mr-2" />
             支出分类 ({{ expenseCategories.length }})
           </h3>
         </div>
-        <div class="p-4">
+        <div class="p-3">
           <template v-if="expenseCategories.length > 0">
             <CategoryTree
               :categories="expenseCategories"
@@ -115,14 +115,14 @@
               @delete="confirmDelete"
             />
           </template>
-          <div v-else class="text-center py-8 text-gray-500">
-            <UIcon name="i-heroicons-tag" class="w-12 h-12 mx-auto mb-2 text-gray-300" />
-            <p>暂无支出分类</p>
+          <div v-else class="text-center py-6 text-gray-500">
+            <UIcon name="i-heroicons-tag" class="w-8 h-8 mx-auto mb-2 text-gray-300" />
+            <p class="text-sm">暂无支出分类</p>
             <UButton 
-              size="sm" 
+              size="xs" 
               color="red" 
               variant="soft" 
-              class="mt-3"
+              class="mt-2"
               @click="addNewCategory('expense')"
             >
               添加支出分类
@@ -317,177 +317,13 @@
 
 <script setup>
 import { api, getUserId } from '~/utils/api';
-import { defineComponent, h } from 'vue';
+import CategoryTree from '~/components/CategoryTree.vue';
 
-// CategoryTree 组件
-const CategoryTree = {
-  name: 'CategoryTree',
-  props: {
-    categories: {
-      type: Array,
-      required: true
-    }
-  },
-  emits: ['view-sub', 'edit', 'delete'],
-  setup(props, { emit }) {
-    // 检查是否有有效的类别
-    if (!Array.isArray(props.categories)) {
-      console.error('CategoryTree: categories prop must be an array');
-      return () => h('div', { class: 'text-red-500' }, 'Invalid categories data');
-    }
-
-    // 存储折叠状态 - 使用 Map 以支持响应式更新
-    const collapsedState = ref(new Map());
-
-    // 切换折叠状态
-    const toggleCollapse = (categoryId) => {
-      const currentState = collapsedState.value.get(categoryId) || false;
-      collapsedState.value.set(categoryId, !currentState);
-      console.log(`Category ${categoryId} is now ${!currentState ? 'collapsed' : 'expanded'}`);
-    };
-
-    // 检查是否折叠
-    const isCollapsed = (categoryId) => {
-      return collapsedState.value.get(categoryId) || false;
-    };
-
-    // 渲染单个类别项
-    const renderCategoryItem = (category) => {
-      // 安全检查
-      if (!category || typeof category !== 'object') {
-        console.error('CategoryTree: Invalid category object', category);
-        return null;
-      }
-
-      const categoryId = category._id;
-      
-      // 检查是否有子类别
-      const hasChildren = Array.isArray(category.children) && category.children.length > 0;
-      
-      // 获取类别图标
-      const getCategoryIcon = () => {
-        // 根据类型和是否有子类别选择图标
-        if (category.type === 'income') {
-          return hasChildren ? 'i-heroicons-banknotes' : 'i-heroicons-arrow-trending-up';
-        } else {
-          return hasChildren ? 'i-heroicons-shopping-bag' : 'i-heroicons-arrow-trending-down';
-        }
-      };
-      
-      // 获取类别图标颜色
-      const getCategoryIconColor = () => {
-        return category.type === 'income' ? 'text-green-500' : 'text-red-500';
-      };
-      
-      return h(
-        'div',
-        { class: 'mb-2' },
-        [
-          h('div', { 
-            class: 'flex items-center p-2 rounded-md hover:bg-gray-50 group transition-colors duration-150',
-          }, [
-            // 展开/折叠图标（如果有子类别）
-            hasChildren ? h(
-              'button',
-              {
-                class: 'mr-1 text-gray-500 hover:text-gray-700 focus:outline-none',
-                onClick: () => {
-                  console.log('Toggle category:', category.name);
-                  toggleCollapse(categoryId);
-                }
-              },
-              [h('UIcon', { 
-                name: isCollapsed(categoryId) 
-                  ? 'i-heroicons-chevron-right' 
-                  : 'i-heroicons-chevron-down', 
-                class: 'w-4 h-4' 
-              })]
-            ) : h('span', { class: 'mr-1 w-4' }, ''),
-            
-            // 类别类型图标
-            h('span', { class: `mr-1.5 ${getCategoryIconColor()}` }, 
-              [h('UIcon', { name: getCategoryIcon(), class: 'w-4 h-4' })]
-            ),
-            
-            // 类别名称
-            h('div', { class: 'flex items-center' }, [
-              h('span', { class: 'font-medium' }, category.name),
-              
-              // 子类别数量指示器
-              hasChildren ? h('span', { 
-                class: 'ml-2 text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5'
-              }, category.children.length) : null
-            ]),
-            
-            // 操作按钮组
-            h('div', { class: 'ml-auto flex opacity-0 group-hover:opacity-100 transition-opacity duration-200' }, [
-              // 查看子类别按钮
-              hasChildren ? h(
-                'button',
-                {
-                  class: 'mr-1 app-btn-sm text-blue-500 hover:text-blue-700 p-1 rounded',
-                  onClick: () => {
-                    console.log('View subcategories for:', category.name);
-                    emit('view-sub', category);
-                  }
-                },
-                [h('UIcon', { name: 'i-heroicons-eye', class: 'w-4 h-4' })]
-              ) : null,
-              
-              // 编辑按钮
-              h(
-                'button',
-                {
-                  class: 'mr-1 app-btn-sm text-gray-500 hover:text-gray-700 p-1 rounded',
-                  onClick: () => {
-                    console.log('Edit category:', category.name);
-                    emit('edit', category);
-                  }
-                },
-                [h('UIcon', { name: 'i-heroicons-pencil-square', class: 'w-4 h-4' })]
-              ),
-              
-              // 删除按钮
-              h(
-                'button',
-                {
-                  class: 'app-btn-sm text-red-500 hover:text-red-700 p-1 rounded',
-                  onClick: () => {
-                    console.log('Delete category:', category.name);
-                    emit('delete', category);
-                  }
-                },
-                [h('UIcon', { name: 'i-heroicons-trash', class: 'w-4 h-4' })]
-              )
-            ])
-          ]),
-          
-          // 子类别（如果有且未折叠）
-          (hasChildren && !isCollapsed(categoryId)) ? h(
-            'div',
-            { class: 'ml-6 border-l border-gray-200 pl-4 mt-2' },
-            category.children.map(child => renderCategoryItem(child))
-          ) : null
-        ]
-      );
-    };
-
-    // 主渲染函数
-    return () => {
-      // 如果没有类别，显示空状态
-      if (props.categories.length === 0) {
-        return h('div', { class: 'text-gray-500 italic' }, '没有类别数据');
-      }
-      
-      // 渲染所有类别
-      return h(
-        'div',
-        { class: 'category-tree' },
-        props.categories.map(category => renderCategoryItem(category))
-      );
-    };
-  }
-};
+// 设置页面标题
+useHead({
+  title: '账单类型管理',
+  titleTemplate: '%s - 记账本'
+});
 
 // 表格列定义
 const columns = [
