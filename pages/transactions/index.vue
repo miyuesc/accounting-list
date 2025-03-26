@@ -6,7 +6,7 @@
         <UButton color="primary" @click="showAddModal = true">
           添加交易
         </UButton>
-        <UButton color="gray" @click="openImportModal()">
+        <UButton color="gray" @click="showImportModal = true">
           <UIcon name="i-heroicons-arrow-up-tray" class="mr-1" />
           导入Excel
         </UButton>
@@ -103,196 +103,57 @@
           v-model="pagination.page"
           show-first
           show-last
-          :page-count="pagination.pages || 1"
+          :page-count="pagination.limit || 1"
           :total="pagination.total"
           @update:model-value="loadTransactions"
         />
       </div>
     </div>
     
-    <!-- 添加/编辑交易弹窗 -->
-    <UModal v-model="showAddModal">
-      <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-100' }">
-        <template #header>
-          <div class="flex justify-between items-center">
-            <h3 class="text-base font-semibold">
-              {{ isEditing ? '编辑交易' : '添加交易' }}
-            </h3>
-            <UButton
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-x-mark"
-              @click="closeModal"
-            />
-          </div>
-        </template>
-        
-        <UForm :state="formState" class="space-y-4 py-2" @submit="saveTransaction">
-          <UFormGroup label="类型" name="type">
-            <URadioGroup v-model="formState.type" :options="typeOptions" />
-          </UFormGroup>
-          
-          <UFormGroup label="类别" name="categoryId">
-            <USelectMenu
-              v-model="formState.categoryId"
-              :options="formCategoryOptions"
-              placeholder="选择类别"
-              value-attribute="value"
-              option-attribute="label"
-            />
-          </UFormGroup>
-          
-          <UFormGroup label="金额" name="amount">
-            <UInput
-              v-model.number="formState.amount"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="请输入金额"
-            />
-          </UFormGroup>
-          
-          <UFormGroup label="日期" name="transactionDate">
-            <UInput v-model="formState.transactionDate" type="date" />
-          </UFormGroup>
-          
-          <UFormGroup label="描述" name="description">
-            <UTextarea v-model="formState.description" placeholder="请输入描述" />
-          </UFormGroup>
-        </UForm>
-        
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="closeModal">
-              取消
-            </UButton>
-            <UButton
-              color="primary"
-              :loading="isSubmitting"
-              @click="saveTransaction"
-            >
-              保存
-            </UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <!-- 交易表单弹窗 -->
+    <TransactionForm
+      v-model="showAddModal"
+      :is-editing="isEditing"
+      :transaction="currentTransaction"
+      :category-options="categoryOptions"
+      @submit="handleTransactionSubmit"
+      @close="handleTransactionClose"
+    />
     
     <!-- 删除确认弹窗 -->
-    <UModal v-model="showDeleteModal">
-      <UCard :ui="{ ring: '', divide: 'divide-y divide-gray-100' }">
-        <template #header>
-          <h3 class="text-base font-semibold">确认删除</h3>
-        </template>
-        
-        <div class="py-4">
-          确定要删除这笔交易记录吗？该操作无法撤销。
-        </div>
-        
-        <template #footer>
-          <div class="flex justify-end gap-2">
-            <UButton color="gray" variant="soft" @click="showDeleteModal = false">
-              取消
-            </UButton>
-            <UButton
-              color="red"
-              :loading="isDeleting"
-              @click="deleteTransaction"
-            >
-              删除
-            </UButton>
-          </div>
-        </template>
-      </UCard>
-    </UModal>
+    <DeleteConfirm
+      v-model="showDeleteModal"
+      :transaction-id="currentTransaction?._id || ''"
+      @success="handleDeleteSuccess"
+    />
     
-    <!-- Excel导入模态框 -->
-    <UModal v-model="showImportModal" :ui="{ width: 'sm:max-w-xl' }">
+    <!-- 导入交易弹窗 -->
+    <ImportTransactions
+      v-model="showImportModal"
+      @success="handleImportSuccess"
+    />
+
+    <!-- 继续添加确认弹窗 -->
+    <UModal v-model="showContinueModal">
       <UCard>
         <template #header>
           <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold">导入Excel交易记录</h3>
-            <UButton color="gray" variant="ghost" icon="i-heroicons-x-mark" @click="showImportModal = false" />
+            <h3 class="text-base font-semibold">继续添加</h3>
+            <UButton color="gray" variant="ghost" icon="i-heroicons-x-mark" @click="showContinueModal = false" />
           </div>
         </template>
         
-        <div v-if="!importResults">
-          <p class="mb-4 text-gray-600">
-            请上传包含交易记录的Excel文件。文件必须包含以下列：
-          </p>
-          
-          <ul class="list-disc pl-5 mb-4 text-sm text-gray-600">
-            <li>收入/支出 (必填，文本"收入"或"支出")</li>
-            <li>金额 (必填，数值)</li>
-            <li>日期 (必填，日期格式)</li>
-            <li>父级类别 (必填，文本)</li>
-            <li>子级类别 (可选，文本)</li>
-            <li>备注 (可选，文本)</li>
-          </ul>
-          
-          <div class="mb-4">
-            <UFormGroup label="Excel文件">
-              <UInput 
-                type="file" 
-                accept=".xlsx,.xls" 
-                @change="handleFileChange"
-                class="py-2" 
-              />
-            </UFormGroup>
-          </div>
-          
-          <p class="text-xs text-gray-500 mb-4">
-            注意：系统会自动创建不存在的类别，并建立正确的父子关系。
-          </p>
-        </div>
-        
-        <div v-else>
-          <div class="mb-4">
-            <div class="flex justify-between mb-2">
-              <h4 class="font-medium">导入结果</h4>
-              <div class="flex space-x-2">
-                <span class="text-green-600">成功: {{ importResults.succeeded }}</span>
-                <span class="text-red-600">失败: {{ importResults.failed }}</span>
-              </div>
-            </div>
-            
-            <!-- 失败记录列表 -->
-            <div v-if="importResults.errors && importResults.errors.length > 0" class="mt-4">
-              <h4 class="font-medium mb-2 text-red-600">错误详情:</h4>
-              <div class="max-h-64 overflow-y-auto border rounded p-2">
-                <div v-for="(error, index) in importResults.errors" :key="index" class="mb-2 text-sm">
-                  <p class="mb-1"><span class="font-medium">行 {{ error.row }}:</span> {{ error.message }}</p>
-                  <p class="text-gray-600 text-xs pl-4">数据: {{ error.data }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="py-4">
+          是否继续添加新的交易记录？
         </div>
         
         <template #footer>
           <div class="flex justify-end gap-2">
-            <UButton 
-              v-if="!importResults"
-              color="primary"
-              :loading="isImporting"
-              :disabled="!importFile || isImporting"
-              @click="importTransactions"
-            >
-              开始导入
+            <UButton color="gray" variant="soft" @click="showContinueModal = false">
+              取消
             </UButton>
-            <UButton 
-              v-if="importResults"
-              color="primary"
-              @click="resetImport"
-            >
-              继续导入
-            </UButton>
-            <UButton 
-              color="gray" 
-              variant="soft" 
-              @click="closeImportModal"
-            >
-              关闭
+            <UButton color="primary" @click="handleContinueAdd">
+              继续添加
             </UButton>
           </div>
         </template>
@@ -302,9 +163,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, watchEffect } from 'vue';
+import { ref, onMounted, computed, watchEffect } from 'vue';
 import dayjs from 'dayjs';
-import { api, getUserId } from '~/utils/api';
+import { api } from '~/utils/api';
+import TransactionForm from '~/components/transactions/TransactionForm.vue';
+import ImportTransactions from '~/components/transactions/ImportTransactions.vue';
+import DeleteConfirm from '~/components/transactions/DeleteConfirm.vue';
 
 // 设置页面标题
 useHead({
@@ -316,7 +180,7 @@ useHead({
 interface Transaction {
   _id: string;
   type: 'income' | 'expense';
-  categoryId: {
+  categoryId: string | {
     _id: string;
     name: string;
     type: string;
@@ -410,6 +274,7 @@ const showImportModal = ref(false);
 const importResults = ref<ImportResult | null>(null);
 const importFile = ref<File | null>(null);
 const isEditing = ref(false);
+const showContinueModal = ref(false);
 
 // 分页状态
 const pagination = ref({
@@ -498,6 +363,7 @@ const loadTransactions = async () => {
     
     const response = await api.get<{
       success: boolean;
+      pagination: any;
       data: {
         transactions: Transaction[];
         totalCount: number;
@@ -509,19 +375,11 @@ const loadTransactions = async () => {
     if (response.success) {
       transactions.value = response.data.transactions.map(t => ({
         ...t,
-        categoryName: t.categoryId.name
+        categoryName: typeof t.categoryId === 'object' ? t.categoryId.name : ''
       }));
-      totalCount.value = response.data.totalCount;
-      filters.value.page = response.data.page;
-      filters.value.limit = response.data.limit;
       
       // 更新分页信息
-      pagination.value = {
-        page: response.data.page,
-        limit: response.data.limit,
-        total: response.data.totalCount,
-        pages: Math.ceil(response.data.totalCount / response.data.limit)
-      };
+      pagination.value = response.data.pagination
     }
   } catch (error) {
     console.error('加载交易记录错误:', error);
@@ -560,56 +418,22 @@ const loadCategories = async () => {
   }
 };
 
-// 关闭弹窗
-const closeModal = () => {
-  showAddModal.value = false;
-  isEditing.value = false;
-  resetForm();
-};
-
-// 重置表单
-const resetForm = () => {
-  formState.value = {
-    type: 'expense',
-    categoryId: '',
-    amount: 0,
-    description: '',
-    transactionDate: dayjs().format('YYYY-MM-DD'),
-  };
-  currentTransaction.value = null;
-};
-
 // 编辑交易
 const editTransaction = (transaction: Transaction) => {
   isEditing.value = true;
   currentTransaction.value = transaction;
-  
-  formState.value = {
-    type: transaction.type,
-    categoryId: transaction.categoryId._id,
-    amount: transaction.amount,
-    description: transaction.description,
-    transactionDate: formatDate(transaction.transactionDate),
-  };
-  
-  if (categoryOptions.value.length === 0) {
-    loadCategories().then(() => {
-      showAddModal.value = true;
-    });
-  } else {
-    showAddModal.value = true;
-  }
+  showAddModal.value = true;
 };
 
-// 保存交易
-const saveTransaction = async () => {
+// 确认删除
+const confirmDelete = (transaction: Transaction) => {
+  currentTransaction.value = transaction;
+  showDeleteModal.value = true;
+};
+
+// 处理交易提交
+const handleTransactionSubmit = async (data: any) => {
   try {
-    isSubmitting.value = true;
-    
-    const data = {
-      ...formState.value,
-    };
-    
     let response;
     
     if (isEditing.value && currentTransaction.value) {
@@ -625,12 +449,18 @@ const saveTransaction = async () => {
     }
     
     if (response.success) {
-      closeModal();
       loadTransactions();
       toast.add({
         title: '保存成功',
         color: 'green'
       });
+      
+      // 如果不是编辑模式，询问是否继续添加
+      if (!isEditing.value) {
+        showContinueModal.value = true;
+      } else {
+        showAddModal.value = false;
+      }
     }
   } catch (error) {
     console.error('保存交易错误:', error);
@@ -639,47 +469,18 @@ const saveTransaction = async () => {
       description: '保存交易记录时发生错误',
       color: 'red'
     });
-  } finally {
-    isSubmitting.value = false;
   }
 };
 
-// 确认删除
-const confirmDelete = (transaction: Transaction) => {
-  currentTransaction.value = transaction;
-  showDeleteModal.value = true;
+// 处理交易表单关闭
+const handleTransactionClose = () => {
+  isEditing.value = false;
+  currentTransaction.value = null;
 };
 
-// 删除交易
-const deleteTransaction = async () => {
-  if (!currentTransaction.value) return;
-  
-  try {
-    isDeleting.value = true;
-    
-    const response = await api.delete<{
-      success: boolean;
-      message?: string;
-    }>(`/api/transactions/${currentTransaction.value._id}`);
-    
-    if (response.success) {
-      showDeleteModal.value = false;
-      loadTransactions();
-      toast.add({
-        title: '删除成功',
-        color: 'green'
-      });
-    }
-  } catch (error) {
-    console.error('删除交易错误:', error);
-    toast.add({
-      title: '删除失败',
-      description: '删除交易记录时发生错误',
-      color: 'red'
-    });
-  } finally {
-    isDeleting.value = false;
-  }
+// 处理删除成功
+const handleDeleteSuccess = () => {
+  loadTransactions();
 };
 
 // 监听类型变化
@@ -775,9 +576,14 @@ const resetImport = () => {
   }
 };
 
-// 关闭导入模态框
-const closeImportModal = () => {
-  showImportModal.value = false;
-  resetImport();
+// 处理导入成功
+const handleImportSuccess = () => {
+  loadTransactions();
+};
+
+// 处理继续添加
+const handleContinueAdd = () => {
+  showContinueModal.value = false;
+  showAddModal.value = true;
 };
 </script> 
